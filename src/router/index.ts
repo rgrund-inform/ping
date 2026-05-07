@@ -17,6 +17,17 @@ const routes: RouteRecordRaw[] = [
     name: 'history',
     component: () => import('@/views/HistoryView.vue'),
   },
+  {
+    path: '/players',
+    name: 'players',
+    component: () => import('@/views/PlayersView.vue'),
+  },
+  {
+    path: '/player/:id',
+    name: 'player',
+    component: () => import('@/views/PlayerView.vue'),
+    props: true,
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

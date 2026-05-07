@@ -16,6 +16,11 @@ const items = computed(() => [
     command: () => router.push({ name: 'home' }),
   },
   {
+    label: 'Players',
+    icon: 'pi pi-users',
+    command: () => router.push({ name: 'players' }),
+  },
+  {
     label: 'History',
     icon: 'pi pi-history',
     command: () => router.push({ name: 'history' }),

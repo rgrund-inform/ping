@@ -19,15 +19,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - uses: oven-sh/setup-bun@v2
+      - name: Use public npm registry in CI
+        run: |
+          cat > bunfig.toml <<'EOF'
+          [install]
+          registry = "https://registry.npmjs.org/"
+          EOF
+          # The committed bun.lock pins URLs to the corporate Artifactory mirror,
+          # which is unreachable from GitHub runners. Drop it so bun re-resolves
+          # via the public registry above.
+          rm -f bun.lock
       - name: Install
-        run: npm install --no-audit --no-fund --registry=https://registry.npmjs.org/
+        run: bun install
+      - name: Test
+        run: bun test src/lib
       - name: Build
         env:
           GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
-        run: npm run build
+        run: bun run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

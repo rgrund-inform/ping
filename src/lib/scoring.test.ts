@@ -48,6 +48,17 @@ describe('recordMatchResult', () => {
   })
 })
 
+describe('applyResult', () => {
+  test('refuses to overwrite an already-played match', () => {
+    const t = rrTournament(['a', 'b'])
+    applyResult(t, t.matches[0].id, 'a', 5)
+    expect(() => applyResult(t, t.matches[0].id, 'b', 9)).toThrow(/already played/)
+    // Original result preserved.
+    expect(t.matches[0].winnerSide).toBe('a')
+    expect(t.matches[0].loserScore).toBe(5)
+  })
+})
+
 describe('standings + isComplete (round-robin)', () => {
   test('full 3-player tournament: rank by wins, then point diff', () => {
     const t = rrTournament(['a', 'b', 'c'])

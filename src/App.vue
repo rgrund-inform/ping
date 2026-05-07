@@ -8,6 +8,7 @@ import ConfirmDialog from 'primevue/confirmdialog'
 
 const router = useRouter()
 const dark = ref(true)
+const version = __APP_VERSION__
 
 const items = computed(() => [
   {
@@ -94,7 +95,7 @@ onMounted(() => {
   </main>
 
   <footer class="text-center text-xs opacity-60 py-3">
-    Ping · v0.1 · data stays on this device
+    Ping · v{{ version }} · data stays on this device
   </footer>
 
   <Toast position="bottom-center" />

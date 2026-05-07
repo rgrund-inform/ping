@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -34,17 +34,13 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Test
         run: bun test src/lib
-      - name: Build
+      - name: Build (validate only — discarded)
         env:
           GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
         run: bun run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
 
   release:
-    needs: build
+    needs: verify
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     permissions:
@@ -72,18 +68,40 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   deploy:
-    # Deploy only when semantic-release just cut a new version — i.e. on tagged
-    # releases. Pushes that don't bump the version (chore:, ci:, docs:, …) skip
-    # this job.
-    needs: [build, release]
+    # Build + deploy only when semantic-release just cut a new version.
+    # Checks out `main` AFTER the release commit so the bundle embeds the
+    # bumped package.json version.
+    needs: release
     if: needs.release.outputs.new_release_published == 'true'
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: oven-sh/setup-bun@v2
+      - name: Use public npm registry in CI
+        run: |
+          cat > bunfig.toml <<'EOF'
+          [install]
+          registry = "https://registry.npmjs.org/"
+          EOF
+          sed -i 's|https://repo\.inform-software\.com/artifactory/api/npm/npmjs-remote|https://registry.npmjs.org|g' bun.lock
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: Build
+        env:
+          GITHUB_PAGES_BASE: /${{ github.event.repository.name }}/
+        run: bun run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4

@@ -35,6 +35,7 @@ export function applyResult(
 ): void {
   const match = tournament.matches.find((m) => m.id === matchId)
   if (!match) throw new Error('match not found')
+  if (match.winnerSide !== null) throw new Error('match already played; results are final')
   recordMatchResult(match, winnerSide, loserScore, tournament.maxScore)
   if (tournament.mode === 'knockout') {
     promoteWinner(tournament.matches, match)

@@ -18,7 +18,7 @@ const emit = defineEmits<{
 const store = useTournamentsStore()
 const name = ref('')
 const mode = ref<TournamentMode>('round-robin')
-const maxScore = ref(11)
+const maxScore = ref(7)
 const seeding = ref<Seeding>('win-rate')
 const players = ref<PlayerId[]>([])
 
@@ -37,7 +37,7 @@ watch(
     if (v) {
       name.value = defaultName()
       mode.value = 'round-robin'
-      maxScore.value = 11
+      maxScore.value = 7
       seeding.value = 'win-rate'
       players.value = []
     }

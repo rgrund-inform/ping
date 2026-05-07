@@ -52,4 +52,6 @@ export interface Fact {
   id: string
   text: string
   weight: number
+  /** Players the fact is about, used to prefer relevant hype on the next-match screen. */
+  playerIds?: PlayerId[]
 }

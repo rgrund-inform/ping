@@ -17,6 +17,7 @@ import ScoreEntryDialog from '@/components/ScoreEntryDialog.vue'
 import RoundRobinTable from '@/components/RoundRobinTable.vue'
 import BracketView from '@/components/BracketView.vue'
 import RosterPanel from '@/components/RosterPanel.vue'
+import FactCard from '@/components/FactCard.vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -31,6 +32,11 @@ const dialogVisible = ref(false)
 const upcoming = computed(() =>
   tournament.value ? store.nextMatchesFor(tournament.value.id, 50) : [],
 )
+const nextMatchPlayers = computed<string[]>(() => {
+  const m = upcoming.value[0]
+  if (!m) return []
+  return [m.a, m.b].filter((id): id is string => id !== null)
+})
 const allMatches = computed(() =>
   tournament.value
     ? [...tournament.value.matches].sort(
@@ -148,7 +154,8 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
             <i class="pi pi-check-circle text-3xl text-positive block mb-2" />
             All matches are done.
           </div>
-          <div v-else class="flex flex-col gap-2">
+          <div v-else class="flex flex-col gap-3">
+            <FactCard hype :prefer-players="nextMatchPlayers" />
             <MatchCard
               v-for="m in upcoming"
               :key="m.id"

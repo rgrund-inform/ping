@@ -7,7 +7,7 @@ import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
 
 const router = useRouter()
-const dark = ref(false)
+const dark = ref(true)
 
 const items = computed(() => [
   {
@@ -41,10 +41,9 @@ async function install() {
 
 onMounted(() => {
   const saved = localStorage.getItem('ping.theme')
-  if (saved === 'dark') {
-    dark.value = true
-    document.documentElement.classList.add('app-theme-dark')
-  }
+  // Default to dark; respect explicit preference if the user has toggled before.
+  dark.value = saved === 'light' ? false : true
+  document.documentElement.classList.toggle('app-theme-dark', dark.value)
   window.addEventListener('beforeinstallprompt', (e: Event) => {
     e.preventDefault()
     installEvent.value = e

@@ -62,12 +62,14 @@ const generators: Generator[] = [
           id: `h2h:${p.a}:${p.b}`,
           text: `${nameOf(input, p.a)} beats ${nameOf(input, p.b)} in ${Math.round(aRate * 100)}% of their matches (${p.aw} of ${total}).`,
           weight: 3,
+          playerIds: [p.a, p.b],
         })
       } else if (1 - aRate >= 0.7) {
         facts.push({
           id: `h2h:${p.b}:${p.a}`,
           text: `${nameOf(input, p.b)} beats ${nameOf(input, p.a)} in ${Math.round((1 - aRate) * 100)}% of their matches (${p.bw} of ${total}).`,
           weight: 3,
+          playerIds: [p.a, p.b],
         })
       }
     }
@@ -99,6 +101,7 @@ const generators: Generator[] = [
           id: `streak:${pid}`,
           text: `${nameOf(input, pid)} is on fire — ${n} wins in a row today.`,
           weight: 4,
+          playerIds: [pid],
         })
       }
     }
@@ -122,6 +125,7 @@ const generators: Generator[] = [
         id: `rivalry:${top.a}:${top.b}`,
         text: `${nameOf(input, top.a)} vs ${nameOf(input, top.b)}: ${top.n} matches — the all-time top rivalry.`,
         weight: 1,
+        playerIds: [top.a, top.b],
       },
     ]
   },
@@ -155,6 +159,7 @@ const generators: Generator[] = [
         id: `tight:${tightest.a}:${tightest.b}`,
         text: `${nameOf(input, tightest.a)} vs ${nameOf(input, tightest.b)} — average finish ${avgMax}-${avgLoser}, every game's a nail-biter.`,
         weight: 2,
+        playerIds: [tightest.a, tightest.b],
       },
     ]
   },
@@ -182,6 +187,7 @@ const generators: Generator[] = [
           id: `firstwin:${id}`,
           text: `${nameOf(input, id)} just won their first match. Welcome to the wall.`,
           weight: 5,
+          playerIds: [id],
         })
       }
     }
@@ -212,12 +218,14 @@ const generators: Generator[] = [
           id: `today-undefeated:${pid}`,
           text: `Today: ${nameOf(input, pid)} ${rec.w}-${rec.l}, undefeated.`,
           weight: 4,
+          playerIds: [pid],
         })
       } else if (rec.w / total >= 0.75) {
         facts.push({
           id: `today-strong:${pid}`,
           text: `Today: ${nameOf(input, pid)} ${rec.w}-${rec.l}, dominating.`,
           weight: 2,
+          playerIds: [pid],
         })
       }
     }
@@ -242,6 +250,16 @@ export function generateFacts(input: FactInput): Fact[] {
     if (!cur || cur.weight < f.weight) dedup.set(f.id, f)
   }
   return [...dedup.values()]
+}
+
+/**
+ * Return facts that mention at least one of the given players.
+ * Used to surface hype before an upcoming match.
+ */
+export function factsAboutPlayers(facts: Fact[], ids: PlayerId[]): Fact[] {
+  if (ids.length === 0) return []
+  const set = new Set(ids)
+  return facts.filter((f) => f.playerIds?.some((id) => set.has(id)))
 }
 
 /** Pick a weighted-random fact, optionally avoiding the previously shown one. */

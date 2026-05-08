@@ -1,5 +1,7 @@
 # Ping — Table Tennis Tournament Planner
 
+**Live app:** <https://rgrund-inform.github.io/ping/>
+
 A small offline-first PWA for organizing table-tennis tournaments. Round-robin and single-elimination knockout, fast tap-the-loser score entry, mid-tournament roster edits (round-robin), persistent local history, suggested players from previous runs, and a "random facts" engine that mines your match history.
 
 All data lives in `localStorage` on the device. There is no server.

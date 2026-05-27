@@ -10,7 +10,7 @@ import TabPanel from 'primevue/tabpanel'
 import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useTournamentsStore } from '@/stores/tournaments'
-import { champion } from '@/lib/scoring'
+import { canEditMatch, champion } from '@/lib/scoring'
 import type { Match } from '@/types'
 import MatchCard from '@/components/MatchCard.vue'
 import ScoreEntryDialog from '@/components/ScoreEntryDialog.vue'
@@ -58,10 +58,14 @@ const winnerName = computed(() =>
 )
 
 function openEditor(m: Match) {
-  if (m.winnerSide !== null) return
-  if (m.a === null || m.b === null) return
+  if (!tournament.value) return
+  if (!canEditMatch(tournament.value, m)) return
   editing.value = m
   dialogVisible.value = true
+}
+
+function isEditable(m: Match): boolean {
+  return tournament.value ? canEditMatch(tournament.value, m) : false
 }
 
 function deleteTournament() {
@@ -174,7 +178,7 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
               :key="m.id"
               :tournament="tournament"
               :match="m"
-              :clickable="m.winnerSide === null && m.a !== null && m.b !== null"
+              :clickable="isEditable(m)"
               @click="openEditor"
             />
           </div>

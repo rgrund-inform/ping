@@ -19,14 +19,26 @@ const store = useTournamentsStore()
 const stagedWinner = ref<'a' | 'b' | null>(null)
 const stagedLoserScore = ref<number | null>(null)
 
+const isEdit = computed(() => props.match?.winnerSide != null)
+
 watch(
-  () => props.visible,
-  (v) => {
+  () => [props.visible, props.match?.id] as const,
+  ([v]) => {
     if (!v) {
+      stagedWinner.value = null
+      stagedLoserScore.value = null
+      return
+    }
+    const m = props.match
+    if (m && m.winnerSide !== null) {
+      stagedWinner.value = m.winnerSide
+      stagedLoserScore.value = m.loserScore
+    } else {
       stagedWinner.value = null
       stagedLoserScore.value = null
     }
   },
+  { immediate: true },
 )
 
 const aName = computed(() => playerName(props.match?.a))
@@ -54,7 +66,21 @@ function tap(losingSide: 'a' | 'b', score: number) {
 function confirm() {
   if (!props.match) return
   if (stagedWinner.value === null || stagedLoserScore.value === null) return
-  store.recordResult(props.tournament.id, props.match.id, stagedWinner.value, stagedLoserScore.value)
+  if (isEdit.value) {
+    store.editResult(
+      props.tournament.id,
+      props.match.id,
+      stagedWinner.value,
+      stagedLoserScore.value,
+    )
+  } else {
+    store.recordResult(
+      props.tournament.id,
+      props.match.id,
+      stagedWinner.value,
+      stagedLoserScore.value,
+    )
+  }
   emit('recorded')
   emit('update:visible', false)
 }
@@ -67,6 +93,9 @@ const loserName = computed(() => {
   if (stagedWinner.value === null) return ''
   return stagedWinner.value === 'a' ? bName.value : aName.value
 })
+
+const header = computed(() => (isEdit.value ? 'Edit score' : 'Enter score'))
+const saveLabel = computed(() => (isEdit.value ? 'Update result' : 'Save result'))
 </script>
 
 <template>
@@ -75,7 +104,7 @@ const loserName = computed(() => {
     @update:visible="(v: boolean) => emit('update:visible', v)"
     modal
     :style="{ width: 'min(640px, 95vw)' }"
-    header="Enter score"
+    :header="header"
     dismissable-mask
   >
     <div v-if="match" class="flex flex-col gap-4">
@@ -121,7 +150,7 @@ const loserName = computed(() => {
       <div class="flex gap-2 justify-end">
         <Button label="Cancel" severity="secondary" text @click="emit('update:visible', false)" />
         <Button
-          label="Save result"
+          :label="saveLabel"
           icon="pi pi-check"
           :disabled="stagedWinner === null"
           @click="confirm"

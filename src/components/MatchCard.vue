@@ -83,9 +83,14 @@ function onClick() {
       </div>
     </div>
     <i
-      v-if="winnerSide !== null && !match.bye"
+      v-if="winnerSide !== null && !match.bye && !clickable"
       class="pi pi-check-circle text-positive shrink-0"
-      v-tooltip.left="'Completed — results are final'"
+      v-tooltip.left="'Completed — results are locked (a later match has been played)'"
+    />
+    <i
+      v-else-if="winnerSide !== null && clickable"
+      class="pi pi-pencil text-positive opacity-70 shrink-0"
+      v-tooltip.left="'Edit score'"
     />
     <i
       v-else-if="clickable"

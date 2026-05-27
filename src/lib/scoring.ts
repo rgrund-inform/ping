@@ -1,6 +1,13 @@
 import type { Match, PlayerId, Tournament } from '../types'
 import { promoteWinner } from './bracket'
 
+/** The next-round match an edge feeds into (knockout only). */
+function nextBracketMatch(matches: Match[], m: Match): Match | undefined {
+  return matches.find(
+    (x) => x.round === m.round + 1 && x.slot === Math.floor((m.slot ?? 0) / 2),
+  )
+}
+
 export interface Standing {
   playerId: PlayerId
   played: number
@@ -43,6 +50,68 @@ export function applyResult(
   if (isComplete(tournament) && tournament.status === 'running') {
     tournament.status = 'completed'
     tournament.completedAt = Date.now()
+  }
+}
+
+/**
+ * True if a played match can be safely re-scored. Round-robin matches are always
+ * editable; knockout matches are editable only as long as the winner hasn't played
+ * their next round yet (otherwise we'd have to cascade-clear results).
+ */
+export function canEditMatch(t: Tournament, m: Match): boolean {
+  if (m.bye) return false
+  if (m.a === null || m.b === null) return false
+  if (m.winnerSide === null) return true
+  if (t.mode === 'round-robin') return true
+  const next = nextBracketMatch(t.matches, m)
+  if (!next) return true
+  return next.winnerSide === null
+}
+
+/**
+ * Re-score an already-played match. For round-robin, just rewrites winner/score.
+ * For knockout, also fixes the next-round slot if the winner changed; refuses if
+ * the next-round match has already been played.
+ */
+export function editResult(
+  tournament: Tournament,
+  matchId: string,
+  winnerSide: 'a' | 'b',
+  loserScore: number,
+): void {
+  const match = tournament.matches.find((m) => m.id === matchId)
+  if (!match) throw new Error('match not found')
+  if (match.winnerSide === null) throw new Error('match has not been played; use recordResult')
+  if (match.bye) throw new Error('cannot edit a bye')
+  if (loserScore < 0 || loserScore >= tournament.maxScore) {
+    throw new Error(`loserScore must be in [0, ${tournament.maxScore - 1}]`)
+  }
+
+  if (tournament.mode === 'knockout') {
+    const next = nextBracketMatch(tournament.matches, match)
+    if (next && next.winnerSide !== null) {
+      throw new Error('downstream match already played; cannot edit')
+    }
+    const oldWinner = match.winnerSide === 'a' ? match.a : match.b
+    const newWinner = winnerSide === 'a' ? match.a : match.b
+    if (next && oldWinner !== newWinner) {
+      const side = (match.slot ?? 0) % 2 === 0 ? 'a' : 'b'
+      if (side === 'a') next.a = newWinner
+      else next.b = newWinner
+    }
+  }
+
+  match.winnerSide = winnerSide
+  match.loserScore = loserScore
+  match.playedAt = Date.now()
+
+  // Recompute completion status; in practice this only flips if the final's
+  // winner changed in a knockout (it stays completed either way).
+  if (isComplete(tournament)) {
+    if (tournament.status !== 'completed') {
+      tournament.status = 'completed'
+      tournament.completedAt = Date.now()
+    }
   }
 }
 

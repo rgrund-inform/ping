@@ -1,6 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import type { Tournament } from '../types'
-import { applyResult, champion, isComplete, nextMatches, recordMatchResult, standings } from './scoring'
+import {
+  applyResult,
+  canEditMatch,
+  champion,
+  editResult,
+  isComplete,
+  nextMatches,
+  recordMatchResult,
+  standings,
+} from './scoring'
 import { buildRoundRobinMatches } from './schedule'
 import { buildBracket } from './bracket'
 
@@ -89,6 +98,121 @@ describe('nextMatches', () => {
     const next = nextMatches(t, 100)
     expect(next.length).toBe(t.matches.length)
     expect(next[0].round).toBeLessThanOrEqual(next[next.length - 1].round)
+  })
+})
+
+describe('editResult (round-robin)', () => {
+  test('updates loser score for an already-played match', () => {
+    const t = rrTournament(['a', 'b', 'c'])
+    const m = t.matches[0]
+    applyResult(t, m.id, 'a', 3)
+    editResult(t, m.id, 'a', 7)
+    expect(m.winnerSide).toBe('a')
+    expect(m.loserScore).toBe(7)
+  })
+
+  test('flips winner and standings recompute', () => {
+    const t = rrTournament(['a', 'b', 'c'])
+    const m = t.matches.find((x) => sameMatch(x, 'a', 'b'))!
+    applyResult(t, m.id, m.a === 'a' ? 'a' : 'b', 3)
+    expect(standings(t).find((s) => s.playerId === 'a')!.wins).toBe(1)
+    editResult(t, m.id, m.a === 'a' ? 'b' : 'a', 5)
+    expect(standings(t).find((s) => s.playerId === 'b')!.wins).toBe(1)
+    expect(standings(t).find((s) => s.playerId === 'a')!.wins).toBe(0)
+  })
+
+  test('refuses to edit a match that was never played', () => {
+    const t = rrTournament(['a', 'b'])
+    expect(() => editResult(t, t.matches[0].id, 'a', 3)).toThrow(/has not been played/)
+  })
+
+  test('refuses out-of-range scores', () => {
+    const t = rrTournament(['a', 'b'])
+    applyResult(t, t.matches[0].id, 'a', 3)
+    expect(() => editResult(t, t.matches[0].id, 'a', 11)).toThrow()
+    expect(() => editResult(t, t.matches[0].id, 'a', -1)).toThrow()
+  })
+})
+
+describe('editResult (knockout)', () => {
+  test('updates loser score when winner does not change', () => {
+    const t = knockoutTournament(['a', 'b', 'c', 'd'])
+    const r1 = t.matches.filter((m) => m.round === 1).sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0))
+    const first = r1[0]
+    applyResult(t, first.id, 'a', 3)
+    const promoted = first.a
+    editResult(t, first.id, 'a', 8)
+    expect(first.loserScore).toBe(8)
+    const final = t.matches.find((m) => m.round === 2)!
+    expect(final.a).toBe(promoted)
+  })
+
+  test('flipping winner swaps the player in the next-round slot', () => {
+    const t = knockoutTournament(['a', 'b', 'c', 'd'])
+    const r1 = t.matches.filter((m) => m.round === 1).sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0))
+    const first = r1[0]
+    applyResult(t, first.id, 'a', 3)
+    const aPlayer = first.a
+    const bPlayer = first.b
+    const final = t.matches.find((m) => m.round === 2)!
+    expect(final.a).toBe(aPlayer)
+    editResult(t, first.id, 'b', 4)
+    expect(final.a).toBe(bPlayer)
+  })
+
+  test('refuses edit once the next-round match has been played', () => {
+    const t = knockoutTournament(['a', 'b', 'c', 'd'])
+    const r1 = t.matches.filter((m) => m.round === 1).sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0))
+    applyResult(t, r1[0].id, 'a', 3)
+    applyResult(t, r1[1].id, 'a', 4)
+    const final = t.matches.find((m) => m.round === 2)!
+    applyResult(t, final.id, 'a', 5)
+    expect(() => editResult(t, r1[0].id, 'b', 2)).toThrow(/downstream/)
+  })
+
+  test('can edit the final even when tournament is completed', () => {
+    const t = knockoutTournament(['a', 'b', 'c', 'd'])
+    const r1 = t.matches.filter((m) => m.round === 1).sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0))
+    applyResult(t, r1[0].id, 'a', 3)
+    applyResult(t, r1[1].id, 'a', 4)
+    const final = t.matches.find((m) => m.round === 2)!
+    applyResult(t, final.id, 'a', 5)
+    expect(t.status).toBe('completed')
+    const oldChampion = champion(t)
+    editResult(t, final.id, 'b', 6)
+    expect(champion(t)).not.toBe(oldChampion)
+    expect(t.status).toBe('completed')
+  })
+})
+
+describe('canEditMatch', () => {
+  test('rejects byes', () => {
+    const t = knockoutTournament(['a', 'b', 'c'])
+    const bye = t.matches.find((m) => m.bye)!
+    expect(canEditMatch(t, bye)).toBe(false)
+  })
+
+  test('allows unplayed matches with both sides set', () => {
+    const t = rrTournament(['a', 'b'])
+    expect(canEditMatch(t, t.matches[0])).toBe(true)
+  })
+
+  test('round-robin: allows editing any played match', () => {
+    const t = rrTournament(['a', 'b', 'c'])
+    applyResult(t, t.matches[0].id, 'a', 3)
+    expect(canEditMatch(t, t.matches[0])).toBe(true)
+  })
+
+  test('knockout: blocks once downstream match is played', () => {
+    const t = knockoutTournament(['a', 'b', 'c', 'd'])
+    const r1 = t.matches.filter((m) => m.round === 1).sort((x, y) => (x.slot ?? 0) - (y.slot ?? 0))
+    applyResult(t, r1[0].id, 'a', 3)
+    applyResult(t, r1[1].id, 'a', 4)
+    expect(canEditMatch(t, r1[0])).toBe(true)
+    const final = t.matches.find((m) => m.round === 2)!
+    applyResult(t, final.id, 'a', 5)
+    expect(canEditMatch(t, r1[0])).toBe(false)
+    expect(canEditMatch(t, final)).toBe(true)
   })
 })
 

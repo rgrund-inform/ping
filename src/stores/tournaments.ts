@@ -11,7 +11,7 @@ import type {
 import { uid } from '@/lib/id'
 import { buildRoundRobinMatches, regenerateRoundRobin } from '@/lib/schedule'
 import { buildSeededBracket } from '@/lib/bracket'
-import { applyResult, isComplete, nextMatches, standings } from '@/lib/scoring'
+import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
 
 interface State {
@@ -157,6 +157,17 @@ export const useTournamentsStore = defineStore('ping', {
       const t = this.tournament(tournamentId)
       if (!t) return
       applyResult(t, matchId, winnerSide, loserScore)
+    },
+
+    editResult(
+      tournamentId: TournamentId,
+      matchId: string,
+      winnerSide: 'a' | 'b',
+      loserScore: number,
+    ): void {
+      const t = this.tournament(tournamentId)
+      if (!t) return
+      editResult(t, matchId, winnerSide, loserScore)
     },
 
     // ---- views ----

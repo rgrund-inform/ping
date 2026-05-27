@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTournamentsStore } from '@/stores/tournaments'
+import { canEditMatch } from '@/lib/scoring'
 import type { Match, Tournament } from '@/types'
 
 const props = defineProps<{ tournament: Tournament }>()
@@ -27,7 +28,7 @@ function nameOf(id: string | null): string {
 }
 
 function isClickable(m: Match): boolean {
-  return m.winnerSide === null && m.a !== null && m.b !== null
+  return canEditMatch(props.tournament, m)
 }
 
 function roundLabel(idx: number, total: number): string {

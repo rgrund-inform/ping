@@ -13,6 +13,7 @@ import { buildRoundRobinMatches, regenerateRoundRobin } from '@/lib/schedule'
 import { buildSeededBracket } from '@/lib/bracket'
 import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
+import { buildExport, parseExport } from '@/lib/transfer'
 
 interface State {
   version: 1
@@ -188,6 +189,23 @@ export const useTournamentsStore = defineStore('ping', {
 
     deleteTournament(id: TournamentId): void {
       this.tournaments = this.tournaments.filter((t) => t.id !== id)
+    },
+
+    // ---- import / export ----
+    exportJSON(): string {
+      return buildExport({
+        version: this.version,
+        players: this.players,
+        tournaments: this.tournaments,
+      })
+    },
+
+    importJSON(raw: string): void {
+      const result = parseExport(raw)
+      if (!result.ok) throw new Error(result.error)
+      this.version = result.data.version
+      this.players = result.data.players
+      this.tournaments = result.data.tournaments
     },
   },
 

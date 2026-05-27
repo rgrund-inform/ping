@@ -5,10 +5,18 @@ import Menubar from 'primevue/menubar'
 import Button from 'primevue/button'
 import Toast from 'primevue/toast'
 import ConfirmDialog from 'primevue/confirmdialog'
+import { useToast } from 'primevue/usetoast'
+import { useConfirm } from 'primevue/useconfirm'
+import { useTournamentsStore } from '@/stores/tournaments'
+import { exportFilename } from '@/lib/transfer'
 
 const router = useRouter()
 const dark = ref(true)
 const version = __APP_VERSION__
+const store = useTournamentsStore()
+const toast = useToast()
+const confirm = useConfirm()
+const fileInput = ref<HTMLInputElement | null>(null)
 
 const items = computed(() => [
   {
@@ -32,6 +40,70 @@ function toggleDark() {
   dark.value = !dark.value
   document.documentElement.classList.toggle('app-theme-dark', dark.value)
   localStorage.setItem('ping.theme', dark.value ? 'dark' : 'light')
+}
+
+function exportData() {
+  const blob = new Blob([store.exportJSON()], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = exportFilename()
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+  toast.add({
+    severity: 'success',
+    summary: 'Exported',
+    detail: `${store.tournaments.length} tournament(s), ${Object.keys(store.players).length} player(s)`,
+    life: 3000,
+  })
+}
+
+function pickImport() {
+  fileInput.value?.click()
+}
+
+async function onFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  let raw: string
+  try {
+    raw = await file.text()
+  } catch (err) {
+    toast.add({ severity: 'error', summary: 'Import failed', detail: String(err), life: 5000 })
+    return
+  }
+  confirm.require({
+    message:
+      'Importing will replace every player, tournament, and match currently on this device. Continue?',
+    header: 'Replace all local data?',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: 'Cancel',
+    acceptLabel: 'Replace',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      try {
+        store.importJSON(raw)
+        toast.add({
+          severity: 'success',
+          summary: 'Imported',
+          detail: `${store.tournaments.length} tournament(s), ${Object.keys(store.players).length} player(s)`,
+          life: 3000,
+        })
+        router.push({ name: 'home' })
+      } catch (err) {
+        toast.add({
+          severity: 'error',
+          summary: 'Import failed',
+          detail: err instanceof Error ? err.message : String(err),
+          life: 6000,
+        })
+      }
+    },
+  })
 }
 
 // Install prompt
@@ -79,6 +151,26 @@ onMounted(() => {
           @click="install"
         />
         <Button
+          icon="pi pi-cloud-download"
+          severity="secondary"
+          size="small"
+          text
+          rounded
+          aria-label="Export data"
+          v-tooltip.bottom="'Export data'"
+          @click="exportData"
+        />
+        <Button
+          icon="pi pi-cloud-upload"
+          severity="secondary"
+          size="small"
+          text
+          rounded
+          aria-label="Import data"
+          v-tooltip.bottom="'Import data'"
+          @click="pickImport"
+        />
+        <Button
           :icon="dark ? 'pi pi-sun' : 'pi pi-moon'"
           severity="secondary"
           size="small"
@@ -89,6 +181,14 @@ onMounted(() => {
       </div>
     </template>
   </Menubar>
+
+  <input
+    ref="fileInput"
+    type="file"
+    accept="application/json,.json"
+    class="hidden"
+    @change="onFile"
+  />
 
   <main class="flex-1 px-3 py-6 md:px-6 max-w-5xl w-full mx-auto">
     <RouterView />

@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/rgrund-inform/ping/compare/v1.2.0...v1.3.0) (2026-05-27)
+
+
+### Features
+
+* import and export the local database as JSON ([0c51813](https://github.com/rgrund-inform/ping/commit/0c518139a767b6c0184e78050b10f55155d62687))
+
 # [1.2.0](https://github.com/rgrund-inform/ping/compare/v1.1.0...v1.2.0) (2026-05-27)
 
 

@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/rgrund-inform/ping/compare/v1.1.0...v1.2.0) (2026-05-27)
+
+
+### Features
+
+* allow editing already-recorded match scores ([a16b43a](https://github.com/rgrund-inform/ping/commit/a16b43ac9b6f0d4611250c8323dacc4416f3212c))
+
 # [1.1.0](https://github.com/rgrund-inform/ping/compare/v1.0.0...v1.1.0) (2026-05-07)
 
 

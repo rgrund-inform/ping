@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/rgrund-inform/ping/compare/v1.4.0...v1.5.0) (2026-06-11)
+
+
+### Features
+
+* shuffle upcoming matches on a tournament's Next tab ([20dc5f7](https://github.com/rgrund-inform/ping/commit/20dc5f7e4603708688d9d828a06ac54ede103e10))
+
 # [1.4.0](https://github.com/rgrund-inform/ping/compare/v1.3.0...v1.4.0) (2026-06-11)
 
 

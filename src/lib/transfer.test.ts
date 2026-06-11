@@ -92,6 +92,24 @@ describe('buildExport / parseExport', () => {
     expect(result.ok).toBe(false)
   })
 
+  test('rejects a tournament roster referencing an unknown player', () => {
+    const store = sampleStore()
+    store.tournaments[0].players.push('ghost')
+    const result = parseExport(JSON.stringify({ app: 'ping', store }))
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/unknown player ghost/)
+  })
+
+  test('rejects a match referencing an unknown player', () => {
+    const store = sampleStore()
+    store.tournaments[0].matches[0].b = 'ghost'
+    const result = parseExport(JSON.stringify({ app: 'ping', store }))
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/unknown player ghost/)
+  })
+
   test('accepts a bare PingStore (no ExportFile wrapper)', () => {
     const raw = JSON.stringify(sampleStore())
     const result = parseExport(raw)
@@ -138,6 +156,16 @@ describe('buildTournamentExport / parseTournamentExport', () => {
 
   test('rejects non-JSON', () => {
     expect(parseTournamentExport('nope {{{').ok).toBe(false)
+  })
+
+  test('rejects a match referencing a player not in the bundle', () => {
+    const { tournament, players } = sampleTournament()
+    tournament.matches[0].a = 'ghost'
+    const raw = JSON.stringify({ app: 'ping', kind: 'tournament', exportedAt: 0, tournament, players })
+    const result = parseTournamentExport(raw)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/unknown player ghost/)
   })
 })
 

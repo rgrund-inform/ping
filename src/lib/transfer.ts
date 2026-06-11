@@ -49,9 +49,10 @@ export function parseExport(raw: string): ParseResult {
     players[id] = { id: p.id, name: p.name, createdAt: p.createdAt }
   }
 
+  const knownPlayerIds = new Set(Object.keys(players))
   const tournaments: Tournament[] = []
   for (const t of candidate.tournaments) {
-    const result = validateTournament(t)
+    const result = validateTournament(t, knownPlayerIds)
     if (!result.ok) return { ok: false, error: result.error }
     tournaments.push(result.value)
   }
@@ -59,7 +60,10 @@ export function parseExport(raw: string): ParseResult {
   return { ok: true, data: { version: 1, players, tournaments } }
 }
 
-function validateTournament(t: unknown): { ok: true; value: Tournament } | { ok: false; error: string } {
+function validateTournament(
+  t: unknown,
+  knownPlayerIds: Set<string>,
+): { ok: true; value: Tournament } | { ok: false; error: string } {
   if (!isObject(t)) return { ok: false, error: 'Tournament entry is not an object.' }
   if (typeof t.id !== 'string') return { ok: false, error: 'Tournament missing id.' }
   if (typeof t.name !== 'string') return { ok: false, error: `Tournament ${t.id} missing name.` }
@@ -70,12 +74,23 @@ function validateTournament(t: unknown): { ok: true; value: Tournament } | { ok:
   if (!Array.isArray(t.players) || !t.players.every((p) => typeof p === 'string')) {
     return { ok: false, error: `Tournament ${t.id} has invalid players list.` }
   }
+  for (const pid of t.players) {
+    if (!knownPlayerIds.has(pid)) {
+      return { ok: false, error: `Tournament ${t.id} references unknown player ${pid}.` }
+    }
+  }
   if (!Array.isArray(t.matches)) return { ok: false, error: `Tournament ${t.id} has invalid matches.` }
   if (typeof t.bracketLocked !== 'boolean') return { ok: false, error: `Tournament ${t.id} missing bracketLocked.` }
 
   const matches: Match[] = []
   for (const m of t.matches) {
     if (!isMatch(m)) return { ok: false, error: `Tournament ${t.id} has an invalid match.` }
+    if (m.a !== null && !knownPlayerIds.has(m.a)) {
+      return { ok: false, error: `Tournament ${t.id} has a match with unknown player ${m.a}.` }
+    }
+    if (m.b !== null && !knownPlayerIds.has(m.b)) {
+      return { ok: false, error: `Tournament ${t.id} has a match with unknown player ${m.b}.` }
+    }
     matches.push(m)
   }
 
@@ -193,7 +208,7 @@ export function parseTournamentExport(raw: string): TournamentParseResult {
     players[id] = { id: p.id, name: p.name, createdAt: p.createdAt }
   }
 
-  const result = validateTournament(parsed.tournament)
+  const result = validateTournament(parsed.tournament, new Set(Object.keys(players)))
   if (!result.ok) return { ok: false, error: result.error }
 
   return { ok: true, data: { tournament: result.value, players } }

@@ -12,6 +12,7 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { tournamentExportFilename } from '@/lib/transfer'
+import { downloadJSON } from '@/utils/download'
 import { canEditMatch, champion } from '@/lib/scoring'
 import type { Match } from '@/types'
 import MatchCard from '@/components/MatchCard.vue'
@@ -87,15 +88,7 @@ function exportTournament() {
   if (!t) return
   const json = store.exportTournamentJSON(t.id)
   if (!json) return
-  const blob = new Blob([json], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = tournamentExportFilename(t.name)
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  downloadJSON(json, tournamentExportFilename(t.name))
   toast.add({ severity: 'success', summary: 'Tournament exported', detail: t.name, life: 3000 })
 }
 

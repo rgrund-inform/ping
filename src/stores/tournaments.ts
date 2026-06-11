@@ -244,8 +244,17 @@ export const useTournamentsStore = defineStore('ping', {
         if (res && res.action === 'match' && this.players[res.localId]) {
           playerIdMap[importedId] = res.localId
         } else {
-          // Create (or reuse a same-name) local player.
-          playerIdMap[importedId] = this.upsertPlayer(imported.name).id
+          // Create a fresh local player. We intentionally do NOT dedupe by name
+          // here: one import may legitimately contain two distinct players who
+          // share a name, and the user chose "create" for each — merging them
+          // would collapse the roster and turn their match into a self-match.
+          const player: Player = {
+            id: uid(),
+            name: imported.name.trim() || imported.name,
+            createdAt: imported.createdAt,
+          }
+          this.players[player.id] = player
+          playerIdMap[importedId] = player.id
         }
       }
       const newId = uid()

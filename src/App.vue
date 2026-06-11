@@ -9,6 +9,7 @@ import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { exportFilename } from '@/lib/transfer'
+import { downloadJSON } from '@/utils/download'
 
 const router = useRouter()
 const dark = ref(true)
@@ -43,15 +44,7 @@ function toggleDark() {
 }
 
 function exportData() {
-  const blob = new Blob([store.exportJSON()], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = exportFilename()
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
+  downloadJSON(store.exportJSON(), exportFilename())
   toast.add({
     severity: 'success',
     summary: 'Exported',

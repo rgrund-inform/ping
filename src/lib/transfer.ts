@@ -1,4 +1,4 @@
-import type { Match, Player, PingStore, Tournament, TournamentMode, TournamentStatus } from '../types'
+import type { Match, Player, PingStore, PlayerId, Tournament, TournamentMode, TournamentStatus } from '../types'
 
 export interface ExportFile {
   /** Discriminator so we don't accidentally try to import unrelated JSON. */
@@ -137,4 +137,114 @@ export function exportFilename(now: Date = new Date()): string {
   const m = String(now.getMonth() + 1).padStart(2, '0')
   const d = String(now.getDate()).padStart(2, '0')
   return `ping-export-${y}-${m}-${d}.json`
+}
+
+// ---- single-tournament export / import ----
+
+export interface TournamentExportFile {
+  app: 'ping'
+  kind: 'tournament'
+  exportedAt: number
+  tournament: Tournament
+  /** Only the players referenced by this tournament. */
+  players: Record<PlayerId, Player>
+}
+
+/** Bundle one tournament plus the players it references into a JSON string. */
+export function buildTournamentExport(
+  tournament: Tournament,
+  allPlayers: Record<PlayerId, Player>,
+): string {
+  const players: Record<PlayerId, Player> = {}
+  for (const pid of tournament.players) {
+    const p = allPlayers[pid]
+    if (p) players[pid] = p
+  }
+  const file: TournamentExportFile = {
+    app: 'ping',
+    kind: 'tournament',
+    exportedAt: Date.now(),
+    tournament,
+    players,
+  }
+  return JSON.stringify(file, null, 2)
+}
+
+export type TournamentParseResult =
+  | { ok: true; data: { tournament: Tournament; players: Record<PlayerId, Player> } }
+  | { ok: false; error: string }
+
+export function parseTournamentExport(raw: string): TournamentParseResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { ok: false, error: 'File is not valid JSON.' }
+  }
+  if (!isObject(parsed)) return { ok: false, error: 'File is not a Ping tournament export.' }
+  if (parsed.app !== 'ping' || parsed.kind !== 'tournament') {
+    return { ok: false, error: 'File is not a Ping tournament export.' }
+  }
+  if (!isObject(parsed.players)) return { ok: false, error: 'Missing players map.' }
+
+  const players: Record<PlayerId, Player> = {}
+  for (const [id, p] of Object.entries(parsed.players)) {
+    if (!isPlayer(p) || p.id !== id) return { ok: false, error: `Invalid player entry: ${id}.` }
+    players[id] = { id: p.id, name: p.name, createdAt: p.createdAt }
+  }
+
+  const result = validateTournament(parsed.tournament)
+  if (!result.ok) return { ok: false, error: result.error }
+
+  return { ok: true, data: { tournament: result.value, players } }
+}
+
+export interface PlayerImportRow {
+  /** Player as stored in the import file. */
+  imported: Player
+  /** Id of a local player with the same name (case-insensitive), or null. */
+  matchedLocalId: PlayerId | null
+}
+
+/** For each imported player, find an existing local player with the same name. */
+export function planPlayerImport(
+  importedPlayers: Record<PlayerId, Player>,
+  localPlayers: Record<PlayerId, Player>,
+): PlayerImportRow[] {
+  const byName = new Map<string, PlayerId>()
+  for (const p of Object.values(localPlayers)) {
+    byName.set(p.name.trim().toLowerCase(), p.id)
+  }
+  return Object.values(importedPlayers).map((imported) => ({
+    imported,
+    matchedLocalId: byName.get(imported.name.trim().toLowerCase()) ?? null,
+  }))
+}
+
+/**
+ * Clone a tournament with a fresh id and every player reference (roster +
+ * each match's `a`/`b`) rewritten through `playerIdMap`.
+ */
+export function remapTournament(
+  tournament: Tournament,
+  playerIdMap: Record<PlayerId, PlayerId>,
+  newId: string,
+): Tournament {
+  const map = (pid: PlayerId | null): PlayerId | null =>
+    pid === null ? null : playerIdMap[pid] ?? pid
+  return {
+    ...tournament,
+    id: newId,
+    players: tournament.players.map((pid) => playerIdMap[pid] ?? pid),
+    matches: tournament.matches.map((m) => ({ ...m, a: map(m.a), b: map(m.b) })),
+  }
+}
+
+/** Suggested filename for a single-tournament export. */
+export function tournamentExportFilename(name: string, now: Date = new Date()): string {
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tournament'
+  return `ping-${slug}-${y}-${m}-${d}.json`
 }

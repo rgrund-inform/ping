@@ -13,7 +13,12 @@ import { buildRoundRobinMatches, regenerateRoundRobin } from '@/lib/schedule'
 import { buildSeededBracket } from '@/lib/bracket'
 import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
-import { buildExport, parseExport } from '@/lib/transfer'
+import {
+  buildExport,
+  buildTournamentExport,
+  parseExport,
+  remapTournament,
+} from '@/lib/transfer'
 
 interface State {
   version: 1
@@ -206,6 +211,40 @@ export const useTournamentsStore = defineStore('ping', {
       this.version = result.data.version
       this.players = result.data.players
       this.tournaments = result.data.tournaments
+    },
+
+    exportTournamentJSON(id: TournamentId): string | null {
+      const t = this.tournament(id)
+      if (!t) return null
+      return buildTournamentExport(t, this.players)
+    },
+
+    /**
+     * Add an imported tournament to the store, resolving each imported player
+     * to a local one. `resolutions` maps an imported player id to either an
+     * existing local player or a request to create a new player by name.
+     */
+    importTournament(
+      data: { tournament: Tournament; players: Record<PlayerId, Player> },
+      resolutions: Record<
+        PlayerId,
+        { action: 'match'; localId: PlayerId } | { action: 'create' }
+      >,
+    ): TournamentId {
+      const playerIdMap: Record<PlayerId, PlayerId> = {}
+      for (const [importedId, imported] of Object.entries(data.players)) {
+        const res = resolutions[importedId]
+        if (res && res.action === 'match' && this.players[res.localId]) {
+          playerIdMap[importedId] = res.localId
+        } else {
+          // Create (or reuse a same-name) local player.
+          playerIdMap[importedId] = this.upsertPlayer(imported.name).id
+        }
+      }
+      const newId = uid()
+      const t = remapTournament(data.tournament, playerIdMap, newId)
+      this.tournaments.push(t)
+      return newId
     },
   },
 

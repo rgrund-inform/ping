@@ -9,7 +9,7 @@ import type {
   TournamentMode,
 } from '@/types'
 import { uid } from '@/lib/id'
-import { buildRoundRobinMatches, regenerateRoundRobin } from '@/lib/schedule'
+import { buildRoundRobinMatches, regenerateRoundRobin, shuffleUpcomingMatches } from '@/lib/schedule'
 import { buildSeededBracket } from '@/lib/bracket'
 import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
@@ -174,6 +174,13 @@ export const useTournamentsStore = defineStore('ping', {
       const t = this.tournament(tournamentId)
       if (!t) return
       editResult(t, matchId, winnerSide, loserScore)
+    },
+
+    /** Randomise the order of the remaining matches (round-robin only). */
+    shuffleUpcoming(id: TournamentId): void {
+      const t = this.tournament(id)
+      if (!t || t.status !== 'running' || t.mode !== 'round-robin') return
+      t.matches = shuffleUpcomingMatches(t.matches)
     },
 
     // ---- views ----

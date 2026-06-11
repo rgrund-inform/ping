@@ -60,6 +60,17 @@ const winnerName = computed(() =>
   winnerId.value ? store.players[winnerId.value]?.name ?? '?' : null,
 )
 
+const canShuffle = computed(() => {
+  const t = tournament.value
+  return !!t && t.status === 'running' && t.mode === 'round-robin' && upcoming.value.length > 1
+})
+
+function shuffleNext() {
+  if (!tournament.value) return
+  store.shuffleUpcoming(tournament.value.id)
+  toast.add({ severity: 'success', summary: 'Matches shuffled', life: 2000 })
+}
+
 function openEditor(m: Match) {
   if (!tournament.value) return
   if (!canEditMatch(tournament.value, m)) return
@@ -189,6 +200,16 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
             All matches are done.
           </div>
           <div v-else class="flex flex-col gap-3">
+            <div v-if="canShuffle" class="flex justify-end">
+              <Button
+                label="Shuffle"
+                icon="pi pi-sort-alt"
+                severity="secondary"
+                outlined
+                size="small"
+                @click="shuffleNext"
+              />
+            </div>
             <FactCard hype :prefer-players="nextMatchPlayers" />
             <MatchCard
               v-for="m in upcoming"

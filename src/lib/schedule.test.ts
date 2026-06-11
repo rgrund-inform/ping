@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { buildRoundRobinMatches, regenerateRoundRobin, roundRobinPairings } from './schedule'
+import {
+  buildRoundRobinMatches,
+  regenerateRoundRobin,
+  roundRobinPairings,
+  shuffleUpcomingMatches,
+} from './schedule'
 
 describe('roundRobinPairings', () => {
   test('returns empty for fewer than two players', () => {
@@ -60,5 +65,40 @@ describe('regenerateRoundRobin', () => {
     expect(dupes.length).toBe(0)
     // 4 players → 6 total pairings; 1 already played → 5 unplayed expected
     expect(next.filter((m) => m.winnerSide === null).length).toBe(5)
+  })
+})
+
+describe('shuffleUpcomingMatches', () => {
+  // Deterministic rng that always returns 0 → reorders without needing Math.random.
+  const fixedRng = () => 0
+
+  test('reorders unplayed matches and renumbers their rounds sequentially', () => {
+    const matches = buildRoundRobinMatches(['a', 'b', 'c', 'd']) // 6 matches
+    const out = shuffleUpcomingMatches(matches, fixedRng)
+    const upcoming = out.filter((m) => m.winnerSide === null)
+    // Same set of matches, just reordered.
+    expect(out.length).toBe(matches.length)
+    expect(new Set(out.map((m) => m.id))).toEqual(new Set(matches.map((m) => m.id)))
+    // Rounds become a strict 1..n sequence so the queue order is fully defined.
+    expect(upcoming.map((m) => m.round)).toEqual([1, 2, 3, 4, 5, 6])
+    // The order actually changed.
+    expect(upcoming.map((m) => m.id)).not.toEqual(matches.map((m) => m.id))
+  })
+
+  test('keeps played matches and numbers new rounds after the highest played', () => {
+    const matches = buildRoundRobinMatches(['a', 'b', 'c', 'd'])
+    matches[0].winnerSide = 'a'
+    matches[0].loserScore = 3
+    const playedRound = matches[0].round
+    const out = shuffleUpcomingMatches(matches, fixedRng)
+    const played = out.filter((m) => m.winnerSide !== null)
+    const upcoming = out.filter((m) => m.winnerSide === null)
+    expect(played).toEqual([matches[0]])
+    expect(Math.min(...upcoming.map((m) => m.round))).toBe(playedRound + 1)
+  })
+
+  test('returns input unchanged with fewer than two unplayed matches', () => {
+    const matches = buildRoundRobinMatches(['a', 'b']) // single match
+    expect(shuffleUpcomingMatches(matches, fixedRng)).toBe(matches)
   })
 })

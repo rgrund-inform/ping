@@ -80,3 +80,36 @@ export function regenerateRoundRobin(
 function pairKey(a: PlayerId, b: PlayerId): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`
 }
+
+/**
+ * Randomise the play order of the not-yet-played matches.
+ * Played matches (winnerSide !== null) keep their position; the remaining
+ * matches are reordered and given fresh consecutive round numbers after the
+ * highest played round, so the "Next" queue is reshuffled. Returns the input
+ * unchanged when there are fewer than two unplayed matches to shuffle.
+ */
+export function shuffleUpcomingMatches(
+  matches: Match[],
+  rng: () => number = Math.random,
+): Match[] {
+  const played = matches.filter((m) => m.winnerSide !== null)
+  const upcoming = matches.filter((m) => m.winnerSide === null)
+  if (upcoming.length < 2) return matches
+
+  const startRound = played.reduce((max, m) => Math.max(max, m.round), 0)
+  const renumbered = shuffle(upcoming, rng).map((m, i) => ({
+    ...m,
+    round: startRound + i + 1,
+  }))
+  return [...played, ...renumbered]
+}
+
+/** Fisher–Yates shuffle, returning a new array. */
+function shuffle<T>(arr: T[], rng: () => number): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}

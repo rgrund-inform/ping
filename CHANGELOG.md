@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/rgrund-inform/ping/compare/v1.5.0...v1.5.1) (2026-06-11)
+
+
+### Bug Fixes
+
+* harden tournament import against player-identity bugs ([2573880](https://github.com/rgrund-inform/ping/commit/2573880794ca5aa2a28d34ecfbf3b98108c7b963))
+
 # [1.5.0](https://github.com/rgrund-inform/ping/compare/v1.4.0...v1.5.0) (2026-06-11)
 
 

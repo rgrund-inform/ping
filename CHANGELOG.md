@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/rgrund-inform/ping/compare/v1.3.0...v1.4.0) (2026-06-11)
+
+
+### Features
+
+* import and export individual tournaments ([ca7ab63](https://github.com/rgrund-inform/ping/commit/ca7ab6357a228b2733cf48a1f3ae40153bc8890a))
+
 # [1.3.0](https://github.com/rgrund-inform/ping/compare/v1.2.0...v1.3.0) (2026-05-27)
 
 

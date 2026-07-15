@@ -104,6 +104,66 @@ export function shuffleUpcomingMatches(
   return [...played, ...renumbered]
 }
 
+/**
+ * Randomise the play order of the not-yet-played matches while spacing each
+ * player's matches as evenly as possible — a player should not appear in two
+ * matches in a row when it can be avoided. Like {@link shuffleUpcomingMatches},
+ * played matches keep their position and the remaining matches get fresh
+ * consecutive round numbers. Returns the input unchanged when there are fewer
+ * than two unplayed matches to reorder.
+ */
+export function smartShuffleUpcomingMatches(
+  matches: Match[],
+  rng: () => number = Math.random,
+): Match[] {
+  const played = matches.filter((m) => m.winnerSide !== null)
+  const upcoming = matches.filter((m) => m.winnerSide === null)
+  if (upcoming.length < 2) return matches
+
+  const startRound = played.reduce((max, m) => Math.max(max, m.round), 0)
+  const spaced = spaceOutMatches(upcoming, rng).map((m, i) => ({
+    ...m,
+    round: startRound + i + 1,
+  }))
+  return [...played, ...spaced]
+}
+
+/**
+ * Greedily order matches so each player gets as much rest as possible between
+ * appearances. At every position we pick the remaining match whose two players
+ * have rested the longest (largest gap since either last played), breaking ties
+ * randomly. A back-to-back for a player scores a gap of 1, so any conflict-free
+ * match is always preferred when one exists.
+ */
+function spaceOutMatches(matches: Match[], rng: () => number): Match[] {
+  const remaining = shuffle(matches, rng) // random baseline; drives tie-breaks
+  const result: Match[] = []
+  const lastSeen = new Map<PlayerId, number>()
+
+  while (remaining.length > 0) {
+    const pos = result.length
+    let best: Match[] = []
+    let bestGap = -Infinity
+    for (const m of remaining) {
+      const gapA = pos - (lastSeen.get(m.a!) ?? -Infinity)
+      const gapB = pos - (lastSeen.get(m.b!) ?? -Infinity)
+      const gap = Math.min(gapA, gapB)
+      if (gap > bestGap) {
+        bestGap = gap
+        best = [m]
+      } else if (gap === bestGap) {
+        best.push(m)
+      }
+    }
+    const chosen = best[Math.floor(rng() * best.length)]
+    remaining.splice(remaining.indexOf(chosen), 1)
+    result.push(chosen)
+    lastSeen.set(chosen.a!, pos)
+    lastSeen.set(chosen.b!, pos)
+  }
+  return result
+}
+
 /** Fisher–Yates shuffle, returning a new array. */
 function shuffle<T>(arr: T[], rng: () => number): T[] {
   const a = [...arr]

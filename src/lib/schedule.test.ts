@@ -4,7 +4,9 @@ import {
   regenerateRoundRobin,
   roundRobinPairings,
   shuffleUpcomingMatches,
+  smartShuffleUpcomingMatches,
 } from './schedule'
+import type { Match } from '../types'
 
 describe('roundRobinPairings', () => {
   test('returns empty for fewer than two players', () => {
@@ -100,5 +102,80 @@ describe('shuffleUpcomingMatches', () => {
   test('returns input unchanged with fewer than two unplayed matches', () => {
     const matches = buildRoundRobinMatches(['a', 'b']) // single match
     expect(shuffleUpcomingMatches(matches, fixedRng)).toBe(matches)
+  })
+})
+
+describe('smartShuffleUpcomingMatches', () => {
+  const fixedRng = () => 0
+
+  // A small deterministic PRNG so we can probe many orderings without Math.random.
+  function seeded(seed: number): () => number {
+    let s = seed >>> 0
+    return () => {
+      s = (s * 1664525 + 1013904223) >>> 0
+      return s / 0x100000000
+    }
+  }
+
+  // Count how many consecutive upcoming matches share a player.
+  function backToBack(matches: Match[]): number {
+    const upcoming = matches.filter((m) => m.winnerSide === null)
+    let n = 0
+    for (let i = 1; i < upcoming.length; i++) {
+      const prev = upcoming[i - 1]
+      const cur = upcoming[i]
+      if (cur.a === prev.a || cur.a === prev.b || cur.b === prev.a || cur.b === prev.b) n++
+    }
+    return n
+  }
+
+  let counter = 0
+  function match(a: string, b: string): Match {
+    return { id: `m${counter++}`, round: 1, a, b, winnerSide: null, loserScore: null }
+  }
+
+  test('avoids back-to-back appearances when a spacing exists', () => {
+    // a and d each play twice; ab,ac,de,df can be ordered with zero repeats.
+    const matches = [match('a', 'b'), match('a', 'c'), match('d', 'e'), match('d', 'f')]
+    for (let seed = 1; seed <= 20; seed++) {
+      const out = smartShuffleUpcomingMatches(matches, seeded(seed))
+      expect(backToBack(out)).toBe(0)
+    }
+    // Deterministic rng path is spaced too.
+    expect(backToBack(smartShuffleUpcomingMatches(matches, fixedRng))).toBe(0)
+  })
+
+  test('never produces more back-to-back than plain shuffle for a full round-robin', () => {
+    const base = buildRoundRobinMatches(['a', 'b', 'c', 'd', 'e']) // 10 matches
+    for (let seed = 1; seed <= 20; seed++) {
+      const smart = smartShuffleUpcomingMatches(base, seeded(seed))
+      expect(backToBack(smart)).toBeLessThanOrEqual(backToBack(base))
+    }
+  })
+
+  test('reorders unplayed matches and renumbers rounds sequentially', () => {
+    const matches = buildRoundRobinMatches(['a', 'b', 'c', 'd'])
+    const out = smartShuffleUpcomingMatches(matches, seeded(7))
+    const upcoming = out.filter((m) => m.winnerSide === null)
+    expect(out.length).toBe(matches.length)
+    expect(new Set(out.map((m) => m.id))).toEqual(new Set(matches.map((m) => m.id)))
+    expect(upcoming.map((m) => m.round)).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  test('keeps played matches and numbers new rounds after the highest played', () => {
+    const matches = buildRoundRobinMatches(['a', 'b', 'c', 'd'])
+    matches[0].winnerSide = 'a'
+    matches[0].loserScore = 3
+    const playedRound = matches[0].round
+    const out = smartShuffleUpcomingMatches(matches, seeded(3))
+    const played = out.filter((m) => m.winnerSide !== null)
+    const upcoming = out.filter((m) => m.winnerSide === null)
+    expect(played).toEqual([matches[0]])
+    expect(Math.min(...upcoming.map((m) => m.round))).toBe(playedRound + 1)
+  })
+
+  test('returns input unchanged with fewer than two unplayed matches', () => {
+    const matches = buildRoundRobinMatches(['a', 'b'])
+    expect(smartShuffleUpcomingMatches(matches, fixedRng)).toBe(matches)
   })
 })

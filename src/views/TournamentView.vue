@@ -72,6 +72,12 @@ function shuffleNext() {
   toast.add({ severity: 'success', summary: 'Matches shuffled', life: 2000 })
 }
 
+function smartShuffleNext() {
+  if (!tournament.value) return
+  store.smartShuffleUpcoming(tournament.value.id)
+  toast.add({ severity: 'success', summary: 'Matches evenly spaced', life: 2000 })
+}
+
 function openEditor(m: Match) {
   if (!tournament.value) return
   if (!canEditMatch(tournament.value, m)) return
@@ -193,7 +199,7 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
             All matches are done.
           </div>
           <div v-else class="flex flex-col gap-3">
-            <div v-if="canShuffle" class="flex justify-end">
+            <div v-if="canShuffle" class="flex justify-end gap-2">
               <Button
                 label="Shuffle"
                 icon="pi pi-sort-alt"
@@ -201,6 +207,14 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
                 outlined
                 size="small"
                 @click="shuffleNext"
+              />
+              <Button
+                label="Smart shuffle"
+                icon="pi pi-sparkles"
+                severity="secondary"
+                outlined
+                size="small"
+                @click="smartShuffleNext"
               />
             </div>
             <FactCard hype :prefer-players="nextMatchPlayers" />

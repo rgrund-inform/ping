@@ -121,7 +121,9 @@ export const useTournamentsStore = defineStore('ping', {
       if (t.players.length < 2) throw new Error('need at least 2 players')
 
       if (t.mode === 'round-robin') {
-        t.matches = buildRoundRobinMatches(t.players)
+        // Smart-shuffle the initial order so each player's matches are spaced
+        // out from the very first round, not just after a manual shuffle.
+        t.matches = smartShuffleUpcomingMatches(buildRoundRobinMatches(t.players))
       } else {
         t.matches = buildSeededBracket(
           t.players,

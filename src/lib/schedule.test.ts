@@ -49,6 +49,20 @@ describe('buildRoundRobinMatches', () => {
       expect(m.winnerSide).toBeNull()
     }
   })
+
+  test('randomises which player is side a without changing the pairings', () => {
+    const players = ['a', 'b', 'c', 'd']
+    const keep = buildRoundRobinMatches(players, () => 0.9) // never flips
+    const flip = buildRoundRobinMatches(players, () => 0) // always flips
+    const pairSet = (ms: ReturnType<typeof buildRoundRobinMatches>) =>
+      new Set(ms.map((m) => [m.a, m.b].sort().join('|')))
+    expect(pairSet(flip)).toEqual(pairSet(keep))
+    // Same schedule position, opposite orientation.
+    for (let i = 0; i < keep.length; i++) {
+      expect(flip[i].a).toBe(keep[i].b!)
+      expect(flip[i].b).toBe(keep[i].a!)
+    }
+  })
 })
 
 describe('regenerateRoundRobin', () => {

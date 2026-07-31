@@ -31,17 +31,23 @@ export function roundRobinPairings(players: PlayerId[]): [PlayerId | null, Playe
   return rounds
 }
 
-export function buildRoundRobinMatches(players: PlayerId[]): Match[] {
+export function buildRoundRobinMatches(
+  players: PlayerId[],
+  rng: () => number = Math.random,
+): Match[] {
   const rounds = roundRobinPairings(players)
   const matches: Match[] = []
   rounds.forEach((round, ri) => {
     round.forEach(([a, b]) => {
       if (a === null || b === null) return // skip sit-outs entirely
+      // Randomise which player is side `a` — the front name serves first,
+      // and the circle method would otherwise bias who lands there.
+      const flip = rng() < 0.5
       matches.push({
         id: uid(),
         round: ri + 1,
-        a,
-        b,
+        a: flip ? b : a,
+        b: flip ? a : b,
         winnerSide: null,
         loserScore: null,
       })
@@ -61,6 +67,7 @@ export function buildRoundRobinMatches(players: PlayerId[]): Match[] {
 export function regenerateRoundRobin(
   currentMatches: Match[],
   newRoster: PlayerId[],
+  rng: () => number = Math.random,
 ): Match[] {
   const played = currentMatches.filter((m) => m.winnerSide !== null)
   const playedPair = new Set<string>()
@@ -69,7 +76,7 @@ export function regenerateRoundRobin(
   }
 
   const startRound = played.reduce((max, m) => Math.max(max, m.round), 0)
-  const fresh = buildRoundRobinMatches(newRoster).filter(
+  const fresh = buildRoundRobinMatches(newRoster, rng).filter(
     (m) => !playedPair.has(pairKey(m.a!, m.b!)),
   )
   const renumbered = fresh.map((m) => ({ ...m, round: m.round + startRound }))

@@ -10,6 +10,9 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { exportFilename } from '@/lib/transfer'
 import { downloadJSON } from '@/utils/download'
+import { parseChangelog, releasesBetween, type Release } from '@/lib/changelog'
+import ChangelogDialog from '@/components/ChangelogDialog.vue'
+import changelogRaw from '../CHANGELOG.md?raw'
 
 const router = useRouter()
 const dark = ref(true)
@@ -99,6 +102,24 @@ async function onFile(e: Event) {
   })
 }
 
+// "What's new" after an update: compare the running version against the last
+// one this device has seen and show the changelog entries in between.
+const LAST_SEEN_VERSION_KEY = 'ping.lastSeenVersion'
+const changelogVisible = ref(false)
+const newReleases = ref<Release[]>([])
+
+function checkForUpdate() {
+  const lastSeen = localStorage.getItem(LAST_SEEN_VERSION_KEY)
+  localStorage.setItem(LAST_SEEN_VERSION_KEY, version)
+  // First visit: nothing is "new" yet — record the version silently.
+  if (!lastSeen || lastSeen === version) return
+  const releases = releasesBetween(parseChangelog(changelogRaw), lastSeen, version)
+  if (releases.length > 0) {
+    newReleases.value = releases
+    changelogVisible.value = true
+  }
+}
+
 // Install prompt
 const installEvent = ref<Event | null>(null)
 const canInstall = computed(() => !!installEvent.value)
@@ -119,6 +140,7 @@ onMounted(() => {
     e.preventDefault()
     installEvent.value = e
   })
+  checkForUpdate()
 })
 </script>
 
@@ -193,4 +215,5 @@ onMounted(() => {
 
   <Toast position="bottom-center" />
   <ConfirmDialog />
+  <ChangelogDialog v-model:visible="changelogVisible" :releases="newReleases" />
 </template>

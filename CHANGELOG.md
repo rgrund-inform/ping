@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/rgrund-inform/ping/compare/v1.6.0...v1.7.0) (2026-07-31)
+
+
+### Features
+
+* smart-shuffle initial round-robin order and randomise serve side ([d6c88d6](https://github.com/rgrund-inform/ping/commit/d6c88d643acad2c956ae32e47c44ce20561e1e40))
+
 # [1.6.0](https://github.com/rgrund-inform/ping/compare/v1.5.1...v1.6.0) (2026-07-15)
 
 

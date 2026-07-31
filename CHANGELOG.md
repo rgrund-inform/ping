@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/rgrund-inform/ping/compare/v1.7.0...v1.8.0) (2026-07-31)
+
+
+### Features
+
+* show a what's-new changelog overview after an update ([55e0bef](https://github.com/rgrund-inform/ping/commit/55e0bef56221afa14d67a7d33bd7d5d80ae83c12))
+
 # [1.7.0](https://github.com/rgrund-inform/ping/compare/v1.6.0...v1.7.0) (2026-07-31)
 
 

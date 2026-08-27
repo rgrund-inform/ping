@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { currentStreak, globalPlayerStats, playerHeadToHead, recentResults } from '@/lib/stats'
 import FactCard from '@/components/FactCard.vue'
+
+type H2HSortKey = 'opponentName' | 'matches' | 'wins' | 'winRate'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -18,6 +20,36 @@ const stats = computed(() => {
 })
 
 const h2h = computed(() => playerHeadToHead(props.id, store.players, store.tournaments))
+
+const sortKey = ref<H2HSortKey>('matches')
+const sortDir = ref<'asc' | 'desc'>('desc')
+
+const sortedH2h = computed(() => {
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...h2h.value].sort((a, b) => {
+    if (sortKey.value === 'opponentName') return dir * a.opponentName.localeCompare(b.opponentName)
+    if (sortKey.value === 'wins') {
+      const byWins = dir * (a.wins - b.wins)
+      if (byWins !== 0) return byWins
+      return a.losses - b.losses
+    }
+    return dir * (a[sortKey.value] - b[sortKey.value])
+  })
+})
+
+function setSort(key: H2HSortKey) {
+  if (sortKey.value === key) {
+    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  } else {
+    sortKey.value = key
+    sortDir.value = key === 'opponentName' ? 'asc' : 'desc'
+  }
+}
+
+function arrow(key: H2HSortKey): string {
+  if (sortKey.value !== key) return ''
+  return sortDir.value === 'asc' ? ' ↑' : ' ↓'
+}
 const recent = computed(() => recentResults(props.id, store.players, store.tournaments, 12))
 
 const streak = computed(() => (stats.value ? currentStreak(stats.value.lastResults) : null))
@@ -109,15 +141,23 @@ function fmtDate(ts: number): string {
       <table class="w-full text-sm border-collapse">
         <thead>
           <tr class="text-left">
-            <th class="px-2 py-2">Opponent</th>
-            <th class="px-2 py-2 text-right w-20">M</th>
-            <th class="px-2 py-2 text-right w-24">W-L</th>
-            <th class="px-2 py-2 text-right w-20">Win%</th>
+            <th class="px-2 py-2 cursor-pointer select-none" @click="setSort('opponentName')">
+              Opponent{{ arrow('opponentName') }}
+            </th>
+            <th class="px-2 py-2 text-right w-20 cursor-pointer select-none" @click="setSort('matches')">
+              M{{ arrow('matches') }}
+            </th>
+            <th class="px-2 py-2 text-right w-24 cursor-pointer select-none" @click="setSort('wins')">
+              W-L{{ arrow('wins') }}
+            </th>
+            <th class="px-2 py-2 text-right w-20 cursor-pointer select-none" @click="setSort('winRate')">
+              Win%{{ arrow('winRate') }}
+            </th>
           </tr>
         </thead>
         <tbody>
           <tr
-            v-for="row in h2h"
+            v-for="row in sortedH2h"
             :key="row.opponentId"
             class="border-t border-surface-200 dark:border-surface-700 hover:bg-surface-100 dark:hover:bg-surface-800 cursor-pointer"
             @click="router.push({ name: 'player', params: { id: row.opponentId } })"

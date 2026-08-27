@@ -8,7 +8,6 @@ import {
   parseTournamentExport,
   planPlayerImport,
   remapTournament,
-  tournamentExportFilename,
 } from './transfer'
 
 function sampleStore(): PingStore {
@@ -216,19 +215,5 @@ describe('remapTournament', () => {
     const out = remapTournament(t, {}, 'n')
     expect(out.matches[0].a).toBe('p1')
     expect(out.matches[0].b).toBeNull()
-  })
-})
-
-describe('tournamentExportFilename', () => {
-  test('slugifies the name and appends the date', () => {
-    expect(tournamentExportFilename('Friday Night!', new Date(2026, 4, 27))).toBe(
-      'ping-friday-night-2026-05-27.json',
-    )
-  })
-
-  test('falls back when the name has no usable characters', () => {
-    expect(tournamentExportFilename('  ', new Date(2026, 4, 27))).toBe(
-      'ping-tournament-2026-05-27.json',
-    )
   })
 })

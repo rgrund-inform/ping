@@ -60,7 +60,7 @@ export function parseExport(raw: string): ParseResult {
   return { ok: true, data: { version: 1, players, tournaments } }
 }
 
-function validateTournament(
+export function validateTournament(
   t: unknown,
   knownPlayerIds: Set<string>,
 ): { ok: true; value: Tournament } | { ok: false; error: string } {
@@ -165,7 +165,12 @@ export interface TournamentExportFile {
   players: Record<PlayerId, Player>
 }
 
-/** Bundle one tournament plus the players it references into a JSON string. */
+/**
+ * Bundle one tournament plus the players it references into a JSON string.
+ *
+ * @deprecated File export replaced by share links (shareCodec); kept as
+ * fixture builder for parse tests until file import is removed.
+ */
 export function buildTournamentExport(
   tournament: Tournament,
   allPlayers: Record<PlayerId, Player>,
@@ -253,13 +258,4 @@ export function remapTournament(
     players: tournament.players.map((pid) => playerIdMap[pid] ?? pid),
     matches: tournament.matches.map((m) => ({ ...m, a: map(m.a), b: map(m.b) })),
   }
-}
-
-/** Suggested filename for a single-tournament export. */
-export function tournamentExportFilename(name: string, now: Date = new Date()): string {
-  const y = now.getFullYear()
-  const m = String(now.getMonth() + 1).padStart(2, '0')
-  const d = String(now.getDate()).padStart(2, '0')
-  const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'tournament'
-  return `ping-${slug}-${y}-${m}-${d}.json`
 }

@@ -11,8 +11,6 @@ import Tag from 'primevue/tag'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { useTournamentsStore } from '@/stores/tournaments'
-import { tournamentExportFilename } from '@/lib/transfer'
-import { downloadJSON } from '@/utils/download'
 import { canEditMatch, champion } from '@/lib/scoring'
 import type { Match } from '@/types'
 import MatchCard from '@/components/MatchCard.vue'
@@ -21,6 +19,7 @@ import RoundRobinTable from '@/components/RoundRobinTable.vue'
 import BracketView from '@/components/BracketView.vue'
 import RosterPanel from '@/components/RosterPanel.vue'
 import FactCard from '@/components/FactCard.vue'
+import ShareTournamentDialog from '@/components/ShareTournamentDialog.vue'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -32,6 +31,7 @@ const tournament = computed(() => store.tournament(props.id))
 const tab = ref('next')
 const editing = ref<Match | null>(null)
 const dialogVisible = ref(false)
+const showShare = ref(false)
 
 const upcoming = computed(() =>
   tournament.value ? store.nextMatchesFor(tournament.value.id, 50) : [],
@@ -89,15 +89,6 @@ function isEditable(m: Match): boolean {
   return tournament.value ? canEditMatch(tournament.value, m) : false
 }
 
-function exportTournament() {
-  const t = tournament.value
-  if (!t) return
-  const json = store.exportTournamentJSON(t.id)
-  if (!json) return
-  downloadJSON(json, tournamentExportFilename(t.name))
-  toast.add({ severity: 'success', summary: 'Tournament exported', detail: t.name, life: 3000 })
-}
-
 function deleteTournament() {
   if (!tournament.value) return
   confirm.require({
@@ -152,12 +143,12 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
       </div>
       <div class="flex items-center gap-1">
         <Button
-          label="Export"
-          icon="pi pi-download"
+          label="Share"
+          icon="pi pi-share-alt"
           severity="secondary"
           text
           size="small"
-          @click="exportTournament"
+          @click="showShare = true"
         />
         <Button
           label="Delete"
@@ -258,5 +249,7 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
       :tournament="tournament"
       :match="editing"
     />
+
+    <ShareTournamentDialog v-model:visible="showShare" :tournament="tournament ?? null" />
   </div>
 </template>

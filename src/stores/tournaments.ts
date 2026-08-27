@@ -18,12 +18,7 @@ import {
 import { buildSeededBracket } from '@/lib/bracket'
 import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
-import {
-  buildExport,
-  buildTournamentExport,
-  parseExport,
-  remapTournament,
-} from '@/lib/transfer'
+import { buildExport, parseExport, remapTournament } from '@/lib/transfer'
 
 interface State {
   version: 1
@@ -235,12 +230,6 @@ export const useTournamentsStore = defineStore('ping', {
       this.version = result.data.version
       this.players = result.data.players
       this.tournaments = result.data.tournaments
-    },
-
-    exportTournamentJSON(id: TournamentId): string | null {
-      const t = this.tournament(id)
-      if (!t) return null
-      return buildTournamentExport(t, this.players)
     },
 
     /**

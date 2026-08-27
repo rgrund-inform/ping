@@ -28,6 +28,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/PlayerView.vue'),
     props: true,
   },
+  {
+    path: '/import',
+    name: 'import',
+    component: () => import('@/views/ImportView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

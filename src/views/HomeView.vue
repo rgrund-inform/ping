@@ -41,6 +41,7 @@ function onCreated(id: string) {
   router.push({ name: 'tournament', params: { id } })
 }
 
+// Legacy file import — replaced by share links; remove in a future release.
 function pickImport() {
   fileInput.value?.click()
 }
@@ -78,7 +79,7 @@ function onImported(id: string) {
       <h1 class="text-2xl md:text-3xl font-semibold">Tournaments</h1>
       <div class="flex items-center gap-2">
         <Button
-          label="Import"
+          label="Import file"
           icon="pi pi-upload"
           severity="secondary"
           outlined

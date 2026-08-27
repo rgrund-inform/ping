@@ -133,6 +133,14 @@ export function nextMatches(t: Tournament, n = 5): Match[] {
     .slice(0, n)
 }
 
+/**
+ * Standings ranked by wins, then direct comparison, then point diff. Players
+ * tied on wins are ordered as a mini-league: only played matches between the
+ * tied players count, most head-to-head wins first (for a 2-way tie this is
+ * simply the winner of the direct match). Unplayed head-to-heads and circular
+ * ties (A>B, B>C, C>A) leave the mini-league level, so overall point diff
+ * decides; a stable sort keeps insertion order as the final fallback.
+ */
 export function standings(t: Tournament): Standing[] {
   const map = new Map<PlayerId, Standing>()
   for (const id of t.players) {
@@ -165,8 +173,31 @@ export function standings(t: Tournament): Standing[] {
   }
   const list = [...map.values()]
   for (const s of list) s.pointDiff = s.pointsFor - s.pointsAgainst
-  list.sort((a, b) => b.wins - a.wins || b.pointDiff - a.pointDiff)
-  return list
+  list.sort((a, b) => b.wins - a.wins)
+  const ranked: Standing[] = []
+  for (let i = 0; i < list.length; ) {
+    let j = i
+    while (j < list.length && list[j].wins === list[i].wins) j++
+    ranked.push(...breakTie(t, list.slice(i, j)))
+    i = j
+  }
+  return ranked
+}
+
+/** Order a group tied on wins by head-to-head wins within the group, then point diff. */
+function breakTie(t: Tournament, group: Standing[]): Standing[] {
+  if (group.length < 2) return group
+  const h2hWins = new Map<PlayerId, number>(group.map((s) => [s.playerId, 0]))
+  for (const m of t.matches) {
+    if (m.winnerSide === null || m.bye) continue
+    if (m.a === null || m.b === null) continue
+    if (!h2hWins.has(m.a) || !h2hWins.has(m.b)) continue
+    const winner = m.winnerSide === 'a' ? m.a : m.b
+    h2hWins.set(winner, h2hWins.get(winner)! + 1)
+  }
+  return group.sort(
+    (a, b) => h2hWins.get(b.playerId)! - h2hWins.get(a.playerId)! || b.pointDiff - a.pointDiff,
+  )
 }
 
 /** Champion of a completed knockout (the winner of the final). */

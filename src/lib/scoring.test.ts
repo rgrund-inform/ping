@@ -69,7 +69,7 @@ describe('applyResult', () => {
 })
 
 describe('standings + isComplete (round-robin)', () => {
-  test('full 3-player tournament: rank by wins, then point diff', () => {
+  test('full 3-player tournament: rank by wins, then head-to-head, then point diff', () => {
     const t = rrTournament(['a', 'b', 'c'])
     // a beats b 11-3, a beats c 11-9, b beats c 11-2
     applyResult(t, t.matches.find((m) => sameMatch(m, 'a', 'b'))!.id, winnerOf(t, 'a', 'a', 'b'), 3)
@@ -81,6 +81,70 @@ describe('standings + isComplete (round-robin)', () => {
     expect(s[0].wins).toBe(2)
     expect(s[1].playerId).toBe('b')
   })
+
+  test('2-way tie on wins: direct-match winner ranks above better point diff', () => {
+    const t = rrTournament(['a', 'b', 'c', 'd'])
+    play(t, 'b', 'a', 9) // b wins the direct match
+    play(t, 'a', 'c', 0)
+    play(t, 'a', 'd', 0)
+    play(t, 'b', 'c', 9)
+    play(t, 'd', 'b', 5)
+    play(t, 'c', 'd', 7)
+    // a and b both have 2 wins; a's point diff (+20) beats b's (-2),
+    // but b won their head-to-head.
+    const s = standings(t)
+    expect(s[0].playerId).toBe('b')
+    expect(s[1].playerId).toBe('a')
+    expect(s[0].wins).toBe(2)
+    expect(s[1].wins).toBe(2)
+    expect(s[1].pointDiff).toBeGreaterThan(s[0].pointDiff)
+  })
+
+  test('2-way tie on wins with the direct match unplayed falls back to point diff', () => {
+    const t = rrTournament(['a', 'b', 'c', 'd'])
+    play(t, 'a', 'c', 2) // a: +9
+    play(t, 'b', 'd', 8) // b: +3
+    // a vs b has not been played; both have 1 win, so point diff decides.
+    const s = standings(t)
+    expect(s[0].playerId).toBe('a')
+    expect(s[1].playerId).toBe('b')
+  })
+
+  test('3-way circular tie: intra-group wins all equal, point diff decides', () => {
+    const t = rrTournament(['a', 'b', 'c'])
+    play(t, 'a', 'b', 1) // a: +10, b: -10
+    play(t, 'b', 'c', 2) // b: +9,  c: -9
+    play(t, 'c', 'a', 5) // c: +6,  a: -6
+    // Everyone has 1 win and 1 head-to-head win within the group;
+    // overall point diff: a +4, b -1, c -3.
+    const s = standings(t)
+    expect(s.map((x) => x.playerId)).toEqual(['a', 'b', 'c'])
+    for (const x of s) expect(x.wins).toBe(1)
+  })
+
+  test('3-way tie on wins: mini-league overrides overall point diff', () => {
+    const t = rrTournament(['a', 'b', 'c', 'd', 'e'])
+    // Trio a/b/c: a beats both, b beats c (intra wins a=2, b=1, c=0).
+    play(t, 'a', 'b', 10)
+    play(t, 'a', 'c', 10)
+    play(t, 'b', 'c', 10)
+    // Outside results equalize total wins: a loses both, b splits, c wins both.
+    play(t, 'd', 'a', 0)
+    play(t, 'e', 'a', 0)
+    play(t, 'd', 'b', 5)
+    play(t, 'b', 'e', 9)
+    play(t, 'c', 'd', 0)
+    play(t, 'c', 'e', 0)
+    play(t, 'd', 'e', 8)
+    // Wins: d 3, a/b/c 2 each, e 1. Overall diff: c +20, d +9, b -4, e -5, a -20.
+    // The mini-league among a/b/c ranks a > b > c despite c's far better diff.
+    const s = standings(t)
+    expect(s.map((x) => x.playerId)).toEqual(['d', 'a', 'b', 'c', 'e'])
+    expect(s[1].wins).toBe(2)
+    expect(s[2].wins).toBe(2)
+    expect(s[3].wins).toBe(2)
+    expect(s[3].pointDiff).toBeGreaterThan(s[1].pointDiff)
+  })
 })
 
 function sameMatch(m: { a: string | null; b: string | null }, x: string, y: string): boolean {
@@ -90,6 +154,11 @@ function sameMatch(m: { a: string | null; b: string | null }, x: string, y: stri
 function winnerOf(t: Tournament, winner: string, x: string, y: string): 'a' | 'b' {
   const m = t.matches.find((m) => sameMatch(m, x, y))!
   return m.a === winner ? 'a' : 'b'
+}
+
+function play(t: Tournament, winner: string, loser: string, loserScore: number): void {
+  const m = t.matches.find((x) => sameMatch(x, winner, loser))!
+  applyResult(t, m.id, winnerOf(t, winner, winner, loser), loserScore)
 }
 
 describe('nextMatches', () => {

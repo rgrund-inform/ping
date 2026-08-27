@@ -1,3 +1,16 @@
+# [1.9.0](https://github.com/rgrund-inform/ping/compare/v1.8.0...v1.9.0) (2026-08-27)
+
+
+### Bug Fixes
+
+* make head-to-head table on player page sortable ([81433a3](https://github.com/rgrund-inform/ping/commit/81433a3c2963e4ca9be1ad5d8d36e81ae3c6c758))
+
+
+### Features
+
+* rank round-robin standings by head-to-head before point difference ([fcb5574](https://github.com/rgrund-inform/ping/commit/fcb55749a0f37eb58eb610034dfc8133ad0216cf))
+* share tournaments via link or QR code instead of file export ([6238284](https://github.com/rgrund-inform/ping/commit/623828433453ef9258adf85d98944a6baf256dce))
+
 # [1.8.0](https://github.com/rgrund-inform/ping/compare/v1.7.0...v1.8.0) (2026-07-31)
 
 

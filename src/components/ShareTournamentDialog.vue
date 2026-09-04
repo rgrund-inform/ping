@@ -6,6 +6,7 @@ import { useToast } from 'primevue/usetoast'
 import qrcode from 'qrcode-generator'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { encodeTournamentShare } from '@/lib/shareCodec'
+import { shareSummaryText } from '@/lib/shareText'
 import TournamentSummary from '@/components/TournamentSummary.vue'
 import type { Tournament } from '@/types'
 
@@ -21,6 +22,7 @@ const store = useTournamentsStore()
 const toast = useToast()
 
 const url = ref('')
+const summary = ref('')
 const qrSvg = ref('')
 const qrError = ref(false)
 const pending = ref(false)
@@ -36,6 +38,7 @@ watch(
     qrError.value = false
     const payload = await encodeTournamentShare(t, store.players)
     url.value = `${location.origin}${location.pathname}#/import?d=${payload}`
+    summary.value = shareSummaryText(t, store.players)
     try {
       const qr = qrcode(0, 'M')
       qr.addData(url.value, 'Byte')
@@ -54,19 +57,27 @@ function close() {
   emit('update:visible', false)
 }
 
-async function copyLink() {
+async function copyToClipboard(text: string, done: string) {
   try {
-    await navigator.clipboard.writeText(url.value)
-    toast.add({ severity: 'success', summary: 'Link copied', life: 2000 })
+    await navigator.clipboard.writeText(text)
+    toast.add({ severity: 'success', summary: done, life: 2000 })
   } catch (err) {
     toast.add({ severity: 'error', summary: 'Copy failed', detail: String(err), life: 5000 })
   }
 }
 
+/** Just the URL — for address bars and places that unfurl a bare link. */
+const copyLink = () => copyToClipboard(url.value, 'Link copied')
+
+/** Summary plus URL — for pasting into a chat where the share sheet is unavailable. */
+const copyWithSummary = () =>
+  copyToClipboard(`${summary.value}\n${url.value}`, 'Summary and link copied')
+
 async function shareLink() {
   if (!props.tournament) return
   try {
-    await navigator.share({ title: props.tournament.name, url: url.value })
+    // Messengers show `text` above the link and mostly ignore `title`.
+    await navigator.share({ title: props.tournament.name, text: summary.value, url: url.value })
   } catch {
     // AbortError when the user dismisses the share sheet — nothing to report.
   }
@@ -112,6 +123,14 @@ async function shareLink() {
           icon="pi pi-copy"
           :disabled="pending || !url"
           @click="copyLink"
+        />
+        <Button
+          label="Copy with summary"
+          icon="pi pi-clipboard"
+          severity="secondary"
+          outlined
+          :disabled="pending || !url"
+          @click="copyWithSummary"
         />
         <Button
           v-if="canShare"

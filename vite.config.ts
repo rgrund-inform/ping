@@ -11,12 +11,18 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 
 export default defineConfig(() => {
   const base = process.env.GITHUB_PAGES_BASE ?? '/'
+  // Absolute origin+base for Open Graph tags (crawlers reject relative og:image).
+  const siteUrl = process.env.SITE_URL ?? `http://localhost:5173${base}`
   return {
     base,
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
     },
     plugins: [
+      {
+        name: 'ping:site-url',
+        transformIndexHtml: (html: string) => html.replaceAll('%SITE_URL%', siteUrl),
+      },
       vue(),
       tailwindcss(),
       VitePWA({

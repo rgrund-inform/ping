@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import type { Match, Player, Tournament } from '../types'
-import { decodeTournamentShare, encodeTournamentShare } from './shareCodec'
+import { SHARE_VERSION, decodeTournamentShare, encodeTournamentShare } from './shareCodec'
 
 const NAMES = ['Alice Müller', 'Bob', 'Carol-Ann', 'Dave', 'Erin', 'Frank', 'Grace', 'Heidi']
 
@@ -227,6 +227,111 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
     expect(result.ok).toBe(false)
     if (result.ok) return
     expect(result.error).toMatch(/version/i)
+  })
+
+  test('encodes as share format version 2', async () => {
+    const { tournament, players } = knockout()
+    const payload = await encodeTournamentShare(tournament, players)
+    const result = await decodeTournamentShare(payload)
+    expect(result.ok).toBe(true)
+    expect(SHARE_VERSION).toBe(2)
+  })
+
+  test('still decodes v1 links with absolute-ms playedAt', async () => {
+    const payload = await encodeRaw({
+      v: 1,
+      n: 'Legacy Cup',
+      m: 0,
+      x: 7,
+      s: 1,
+      c: 1700000000000,
+      st: 1700000050000,
+      l: 0,
+      p: ['Alice', 'Bob', 'Carol'],
+      ma: [
+        [1, -1, 0, 1, 0, 3, 1700000123456, 0],
+        [1, -1, 1, 2, 1, 0, 1700000234567, 0],
+        [2, -1, 0, 2, -1, -1, 0, 0],
+      ],
+    })
+    const result = await decodeTournamentShare(payload)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const [m1, m2, m3] = result.data.tournament.matches
+    // v1 carries full millisecond precision and must survive untouched.
+    expect(m1.playedAt).toBe(1700000123456)
+    expect(m2.playedAt).toBe(1700000234567)
+    expect(m2.loserScore).toBe(0)
+    expect(m3.playedAt).toBeUndefined()
+    expect(m3.winnerSide).toBeNull()
+  })
+
+  test('v2 round-trips out-of-order playedAt to whole-second precision', async () => {
+    const { tournament, players } = fullRoundRobin()
+    // Matches are stored in schedule order but were played out of order, with
+    // sub-second timestamps: the delta encoding must cope with negative deltas
+    // and may only lose the millisecond part.
+    tournament.matches[0].playedAt = 1700000500250
+    tournament.matches[1].playedAt = 1700000100750 // earlier than match 0
+    tournament.matches[2].playedAt = 1700000100750 // same second as match 1
+    tournament.matches[3].playedAt = 1699999999999 // before createdAt
+    const payload = await encodeTournamentShare(tournament, players)
+    const result = await decodeTournamentShare(payload)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const got = result.data.tournament.matches.map((m) => m.playedAt)
+    expect(got[0]).toBe(1700000500000)
+    expect(got[1]).toBe(1700000101000)
+    expect(got[2]).toBe(1700000101000)
+    expect(got[3]).toBe(1700000000000)
+    // Remaining played matches (multiples of 1000 in the fixture) are exact.
+    for (let i = 4; i < 10; i++) expect(got[i]).toBe(tournament.matches[i].playedAt)
+    for (let i = 10; i < 28; i++) expect(got[i]).toBeUndefined()
+  })
+
+  test('v2 payload is smaller than the equivalent v1 payload', async () => {
+    const { tournament, players } = fullRoundRobin()
+    // Play everything with realistic irregular gaps.
+    let t = 1700000100000
+    tournament.matches.forEach((m, i) => {
+      m.winnerSide = i % 2 === 0 ? 'a' : 'b'
+      m.loserScore = i % 7
+      m.playedAt = t += 180_000 + ((i * 7919) % 120_000)
+    })
+    const v2 = await encodeTournamentShare(tournament, players)
+    const v1 = await encodeRaw({
+      v: 1,
+      n: tournament.name,
+      m: 0,
+      x: 11,
+      s: 1,
+      c: tournament.createdAt,
+      st: tournament.startedAt,
+      l: 0,
+      p: NAMES,
+      ma: tournament.matches.map((m, i) => [
+        m.round,
+        -1,
+        Math.floor(i / 7), // any valid index; only sizes matter here
+        (i % 7) + 1,
+        m.winnerSide === 'a' ? 0 : 1,
+        m.loserScore,
+        m.playedAt,
+        0,
+      ]),
+    })
+    expect(v2.length).toBeLessThan(v1.length * 0.85)
+  })
+
+  test('v2 tuple with null outside the playedAt column is rejected', async () => {
+    const base = { v: 2, n: 'Evil', m: 0, x: 7, s: 1, c: 1700000000000, l: 0, p: ['Alice', 'Bob'] }
+    const bad = await decodeTournamentShare(await encodeRaw({ ...base, ma: [[1, -1, 0, null, -1, -1, null, 0]] }))
+    expect(bad.ok).toBe(false)
+    const good = await decodeTournamentShare(await encodeRaw({ ...base, ma: [[1, -1, 0, 1, -1, -1, null, 0]] }))
+    expect(good.ok).toBe(true)
+    // v1 never allows null, even in the playedAt column.
+    const v1null = await decodeTournamentShare(await encodeRaw({ ...base, v: 1, ma: [[1, -1, 0, 1, -1, -1, null, 0]] }))
+    expect(v1null.ok).toBe(false)
   })
 
   test('match tuple referencing an out-of-range player index is rejected', async () => {

@@ -2,16 +2,25 @@ import type { Match, Player, PlayerId, Tournament } from '../types'
 import { uid } from './id'
 import { validateTournament } from './transfer'
 
-export const SHARE_VERSION = 1
+export const SHARE_VERSION = 2
 
 /**
  * Compact wire format for a tournament share link. Field names are terse and
  * players are referenced by roster index because the whole payload has to fit
  * in a URL (and ideally a QR code).
  *
- * Match tuple layout:
+ * Match tuple layout (v1):
  * `[round, slot|-1, aIdx|-1, bIdx|-1, winner(0=a,1=b,-1=null), loserScore|-1, playedAt|0, bye(0|1)]`
  * `-1` is the "absent" sentinel because `loserScore: 0` is a legitimate value.
+ * `playedAt` is absolute epoch milliseconds, `0` when unplayed.
+ *
+ * v2 differs only in the `playedAt` element: it is the delta in whole seconds
+ * from the previous *played* match in array order (the first one is relative
+ * to `c`), or `null` when unplayed. Deltas may be zero or negative because
+ * matches are stored in schedule order, not play order, so `null` is the only
+ * safe sentinel. Absolute 13-digit timestamps are unique per match and barely
+ * compress; small deltas cut the final payload by roughly a quarter.
+ * Only v2 is written; v1 links stay decodable.
  */
 interface SharePayloadV1 {
   v: 1
@@ -39,6 +48,13 @@ interface SharePayloadV1 {
   ma: number[][]
 }
 
+type SharePayloadV2 = Omit<SharePayloadV1, 'v' | 'ma'> & {
+  v: 2
+  ma: (number | null)[][]
+}
+
+type SharePayload = SharePayloadV1 | SharePayloadV2
+
 export type ShareDecodeResult =
   | { ok: true; data: { tournament: Tournament; players: Record<PlayerId, Player> } }
   | { ok: false; error: string }
@@ -51,7 +67,17 @@ export async function encodeTournamentShare(
   const indexOf = new Map<PlayerId, number>()
   tournament.players.forEach((pid, i) => indexOf.set(pid, i))
 
-  const payload: SharePayloadV1 = {
+  // playedAt as second-resolution deltas between consecutive played matches.
+  let prevSec = msToSec(tournament.createdAt)
+  const playedAtDelta = (m: Match): number | null => {
+    if (m.playedAt === undefined) return null
+    const sec = msToSec(m.playedAt)
+    const delta = sec - prevSec
+    prevSec = sec
+    return delta
+  }
+
+  const payload: SharePayloadV2 = {
     v: SHARE_VERSION,
     n: tournament.name,
     m: tournament.mode === 'knockout' ? 1 : 0,
@@ -67,7 +93,7 @@ export async function encodeTournamentShare(
       m.b === null ? -1 : indexOf.get(m.b) ?? -1,
       m.winnerSide === null ? -1 : m.winnerSide === 'a' ? 0 : 1,
       m.loserScore ?? -1,
-      m.playedAt ?? 0,
+      playedAtDelta(m),
       m.bye ? 1 : 0,
     ]),
   }
@@ -97,7 +123,9 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
     return { ok: false, error: 'This share link is damaged or incomplete.' }
   }
   if (!isObject(parsed)) return { ok: false, error: 'This share link is damaged or incomplete.' }
-  if (parsed.v !== SHARE_VERSION) return { ok: false, error: 'Unsupported share link version.' }
+  if (parsed.v !== 1 && parsed.v !== 2) {
+    return { ok: false, error: 'Unsupported share link version.' }
+  }
   if (!isSharePayload(parsed)) {
     return { ok: false, error: 'This share link is damaged or incomplete.' }
   }
@@ -111,8 +139,19 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
   })
   const byIndex = (idx: number): PlayerId | null => (idx === -1 ? null : `p${idx}`)
 
+  // v1: absolute ms (0 = unplayed). v2: delta seconds from previous played match (null = unplayed).
+  let prevSec = msToSec(parsed.c)
+  const playedAtOf = (raw: number | null): number | undefined => {
+    if (parsed.v === 1) return raw === 0 ? undefined : (raw as number)
+    if (raw === null) return undefined
+    prevSec += raw
+    return prevSec * 1000
+  }
+
   const matches: Match[] = parsed.ma.map((tuple) => {
-    const [round, slot, aIdx, bIdx, winner, loserScore, playedAt, bye] = tuple
+    const [round, slot, aIdx, bIdx, winner, loserScore, playedAtRaw, bye] = tuple as [
+      number, number, number, number, number, number, number | null, number,
+    ]
     const m: Match = {
       id: uid(),
       round,
@@ -122,7 +161,8 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
       loserScore: loserScore === -1 ? null : loserScore,
     }
     if (slot !== -1) m.slot = slot
-    if (playedAt !== 0) m.playedAt = playedAt
+    const playedAt = playedAtOf(playedAtRaw)
+    if (playedAt !== undefined) m.playedAt = playedAt
     if (bye === 1) m.bye = true
     return m
   })
@@ -155,7 +195,11 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
-function isSharePayload(v: Record<string, unknown>): v is SharePayloadV1 & Record<string, unknown> {
+function isSharePayload(v: Record<string, unknown>): v is SharePayload & Record<string, unknown> {
+  if (v.v !== 1 && v.v !== 2) return false
+  // Index 6 (playedAt) may be null in v2 only; everything else must be a number.
+  const isTupleCell = (n: unknown, i: number) =>
+    typeof n === 'number' || (v.v === 2 && i === 6 && n === null)
   if (typeof v.n !== 'string') return false
   if (v.m !== 0 && v.m !== 1) return false
   if (typeof v.x !== 'number') return false
@@ -169,12 +213,16 @@ function isSharePayload(v: Record<string, unknown>): v is SharePayloadV1 & Recor
   if (
     !Array.isArray(v.ma) ||
     !v.ma.every(
-      (t) => Array.isArray(t) && t.length === 8 && t.every((n) => typeof n === 'number'),
+      (t) => Array.isArray(t) && t.length === 8 && t.every(isTupleCell),
     )
   ) {
     return false
   }
   return true
+}
+
+function msToSec(ms: number): number {
+  return Math.round(ms / 1000)
 }
 
 // ---- bytes <-> base64url ----

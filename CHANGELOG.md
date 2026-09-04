@@ -1,3 +1,10 @@
+# [1.11.0](https://github.com/rgrund-inform/ping/compare/v1.10.0...v1.11.0) (2026-09-04)
+
+
+### Features
+
+* include a results summary in shared links and add link previews ([df09b71](https://github.com/rgrund-inform/ping/commit/df09b715971442e4b59a29ecd647ffb88346f540))
+
 # [1.10.0](https://github.com/rgrund-inform/ping/compare/v1.9.1...v1.10.0) (2026-09-04)
 
 

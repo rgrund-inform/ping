@@ -6,6 +6,7 @@ import { useToast } from 'primevue/usetoast'
 import qrcode from 'qrcode-generator'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { encodeTournamentShare } from '@/lib/shareCodec'
+import TournamentSummary from '@/components/TournamentSummary.vue'
 import type { Tournament } from '@/types'
 
 const props = defineProps<{
@@ -82,8 +83,13 @@ async function shareLink() {
     dismissable-mask
   >
     <div v-if="props.tournament" class="flex flex-col items-center gap-4">
+      <div class="w-full rounded-lg border border-surface-200 dark:border-surface-700 p-3">
+        <div class="font-semibold mb-1">{{ props.tournament.name }}</div>
+        <TournamentSummary :tournament="props.tournament" :players="store.players" />
+      </div>
+
       <p class="text-sm opacity-70 text-center">
-        Scan the code or send the link — the tournament and its players travel inside it.
+        Scan the code or send the link — the tournament, its players and results travel inside it.
       </p>
 
       <div v-if="pending" class="py-8 text-center">

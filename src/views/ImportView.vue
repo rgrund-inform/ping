@@ -39,6 +39,11 @@ function onImported(id: string) {
   router.replace({ name: 'tournament', params: { id } })
 }
 
+function onOpenExisting(id: string) {
+  imported.value = true // suppress the go-home redirect from the dialog closing
+  router.replace({ name: 'tournament', params: { id } })
+}
+
 function onVisibleChange(v: boolean) {
   showImport.value = v
   // Dialog dismissed without importing: nothing to show here, go home.
@@ -58,6 +63,7 @@ function onVisibleChange(v: boolean) {
       :data="importData"
       @update:visible="onVisibleChange"
       @imported="onImported"
+      @open="onOpenExisting"
     />
   </div>
 </template>

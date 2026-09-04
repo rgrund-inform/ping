@@ -148,6 +148,11 @@ function onImported(id: string) {
     </section>
 
     <NewTournamentDialog v-model:visible="showNew" @created="onCreated" />
-    <ImportTournamentDialog v-model:visible="showImport" :data="importData" @imported="onImported" />
+    <ImportTournamentDialog
+      v-model:visible="showImport"
+      :data="importData"
+      @imported="onImported"
+      @open="(id: string) => router.push({ name: 'tournament', params: { id } })"
+    />
   </div>
 </template>

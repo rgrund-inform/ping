@@ -4,8 +4,10 @@ import Dialog from 'primevue/dialog'
 import Select from 'primevue/select'
 import Button from 'primevue/button'
 import Tag from 'primevue/tag'
+import Message from 'primevue/message'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { planPlayerImport } from '@/lib/transfer'
+import TournamentSummary from '@/components/TournamentSummary.vue'
 import type { Player, PlayerId, Tournament } from '@/types'
 
 const props = defineProps<{
@@ -15,6 +17,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:visible': [boolean]
   imported: [string]
+  /** User chose to open the already-present copy instead of importing again. */
+  open: [string]
 }>()
 
 const store = useTournamentsStore()
@@ -46,6 +50,43 @@ watch(
   },
   { immediate: true },
 )
+
+/**
+ * A tournament already on this device that is the same event: the codec keeps
+ * the original name and creation timestamp, so the pair identifies it whether
+ * this is the source device or a previous import of the same link.
+ */
+const existing = computed(() => {
+  const t = props.data?.tournament
+  if (!t) return null
+  const name = t.name.trim().toLowerCase()
+  return (
+    store.tournaments.find(
+      (local) => local.createdAt === t.createdAt && local.name.trim().toLowerCase() === name,
+    ) ?? null
+  )
+})
+
+const existingPlayed = computed(() =>
+  existing.value ? existing.value.matches.filter((m) => m.winnerSide !== null && !m.bye).length : 0,
+)
+const incomingPlayed = computed(() =>
+  props.data ? props.data.tournament.matches.filter((m) => m.winnerSide !== null && !m.bye).length : 0,
+)
+
+const duplicateNote = computed(() => {
+  const detail =
+    existingPlayed.value !== incomingPlayed.value
+      ? ` (${existingPlayed.value} of its matches played here, ${incomingPlayed.value} in this link)`
+      : ''
+  return `You already have this tournament on this device${detail}. Importing again creates a second copy.`
+})
+
+function openExisting() {
+  if (!existing.value) return
+  emit('open', existing.value.id)
+  close()
+}
 
 const matchedCount = computed(
   () => Object.values(choices.value).filter((v) => v !== CREATE).length,
@@ -84,18 +125,26 @@ function confirm() {
     dismissable-mask
   >
     <div v-if="props.data" class="flex flex-col gap-4">
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-2">
         <div class="font-semibold text-lg">{{ props.data.tournament.name }}</div>
-        <div class="flex flex-wrap gap-2 items-center">
-          <Tag
-            :value="props.data.tournament.mode === 'round-robin' ? 'Round-robin' : 'Knockout'"
-            severity="secondary"
-          />
-          <span class="text-sm opacity-70">
-            {{ rows.length }} players · {{ props.data.tournament.matches.length }} matches
-          </span>
-        </div>
+        <TournamentSummary :tournament="props.data.tournament" :players="props.data.players" />
       </div>
+
+      <Message v-if="existing" severity="warn" :closable="false">
+        <div class="flex flex-col gap-2">
+          <div>{{ duplicateNote }}</div>
+          <div>
+            <Button
+              label="Open existing"
+              icon="pi pi-external-link"
+              size="small"
+              severity="warn"
+              outlined
+              @click="openExisting"
+            />
+          </div>
+        </div>
+      </Message>
 
       <div class="flex flex-col gap-2">
         <label class="text-sm font-medium">Match players</label>
@@ -138,7 +187,13 @@ function confirm() {
     <template #footer>
       <div class="flex gap-2 justify-end">
         <Button label="Cancel" severity="secondary" text @click="close" />
-        <Button label="Import" icon="pi pi-check" :disabled="!props.data" @click="confirm" />
+        <Button
+          :label="existing ? 'Import anyway' : 'Import'"
+          icon="pi pi-check"
+          :severity="existing ? 'secondary' : undefined"
+          :disabled="!props.data"
+          @click="confirm"
+        />
       </div>
     </template>
   </Dialog>

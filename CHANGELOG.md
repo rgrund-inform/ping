@@ -1,3 +1,10 @@
+# [1.10.0](https://github.com/rgrund-inform/ping/compare/v1.9.1...v1.10.0) (2026-09-04)
+
+
+### Features
+
+* show results overview when sharing and warn on re-import ([f0e1e0a](https://github.com/rgrund-inform/ping/commit/f0e1e0a5557d7157aa706d0210cb6fb05e91495c))
+
 ## [1.9.1](https://github.com/rgrund-inform/ping/compare/v1.9.0...v1.9.1) (2026-09-04)
 
 

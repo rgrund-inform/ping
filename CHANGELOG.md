@@ -1,3 +1,10 @@
+## [1.9.1](https://github.com/rgrund-inform/ping/compare/v1.9.0...v1.9.1) (2026-09-04)
+
+
+### Performance Improvements
+
+* delta-encode match timestamps in share links (format v2) ([9b913b0](https://github.com/rgrund-inform/ping/commit/9b913b079283ea86287888a05de414e8b3430adb))
+
 # [1.9.0](https://github.com/rgrund-inform/ping/compare/v1.8.0...v1.9.0) (2026-08-27)
 
 

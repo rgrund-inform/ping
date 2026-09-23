@@ -7,6 +7,7 @@ import SelectButton from 'primevue/selectbutton'
 import Button from 'primevue/button'
 import PlayerPicker from './PlayerPicker.vue'
 import { useTournamentsStore } from '@/stores/tournaments'
+import { isSameDay } from '@/lib/date'
 import type { PlayerId, ScoringMode, Seeding, TournamentMode } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
@@ -46,6 +47,19 @@ const modeHint: Record<ModeChoice, string> = {
 
 const isQuick = computed(() => modeChoice.value === 'quick')
 
+/**
+ * Roster of the most recent tournament, offered for reuse only while it is
+ * still the same day — that's the case where you're running a second round
+ * with the same group and re-picking everyone by hand is pure friction.
+ */
+const reusableRoster = computed<PlayerId[] | null>(() => {
+  const last = store.sortedTournaments[0]
+  if (!last || !isSameDay(last.createdAt, Date.now())) return null
+  // Skip players that have since been deleted from the global roster.
+  const ids = last.players.filter((id) => store.players[id])
+  return ids.length >= 2 ? ids : null
+})
+
 watch(
   () => props.visible,
   (v) => {
@@ -62,6 +76,10 @@ watch(
 function defaultName() {
   const d = new Date()
   return `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} tournament`
+}
+
+function reuseRoster() {
+  if (reusableRoster.value) players.value = [...reusableRoster.value]
 }
 
 function close() {
@@ -136,8 +154,18 @@ function submit() {
         <SelectButton v-model="seeding" :options="seedOptions" option-label="label" option-value="value" />
       </div>
 
-      <div class="flex flex-col gap-1">
+      <div class="flex flex-col gap-2">
         <label class="text-sm font-medium">Players</label>
+        <Button
+          v-if="reusableRoster"
+          :label="`Same players as last tournament (${reusableRoster.length})`"
+          icon="pi pi-replay"
+          severity="secondary"
+          outlined
+          size="small"
+          class="self-start"
+          @click="reuseRoster"
+        />
         <PlayerPicker v-model="players" />
       </div>
     </div>

@@ -1,3 +1,11 @@
+# [1.12.0](https://github.com/rgrund-inform/ping/compare/v1.11.0...v1.12.0) (2026-09-23)
+
+
+### Features
+
+* add quick mode, a round-robin that records winners not scores ([8a18d84](https://github.com/rgrund-inform/ping/commit/8a18d84a3942b8283cf3f1ebb39505095460a990))
+* offer the last tournament's players when starting another today ([0b7682d](https://github.com/rgrund-inform/ping/commit/0b7682df507446e3415a79c7e3e5d93d57e30632))
+
 # [1.11.0](https://github.com/rgrund-inform/ping/compare/v1.10.0...v1.11.0) (2026-09-04)
 
 

@@ -12,6 +12,7 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { canEditMatch, champion } from '@/lib/scoring'
+import { isWinOnly, modeLabel } from '@/lib/mode'
 import type { Match } from '@/types'
 import MatchCard from '@/components/MatchCard.vue'
 import ScoreEntryDialog from '@/components/ScoreEntryDialog.vue'
@@ -134,10 +135,11 @@ function statusSeverity(): 'info' | 'success' | 'secondary' {
         />
         <h1 class="text-2xl md:text-3xl font-semibold">{{ tournament.name }}</h1>
         <div class="flex flex-wrap gap-2 mt-1 items-center">
-          <Tag :value="tournament.mode === 'round-robin' ? 'Round-robin' : 'Knockout'" severity="secondary" />
+          <Tag :value="modeLabel(tournament)" severity="secondary" />
           <Tag :value="tournament.status" :severity="statusSeverity()" />
           <span class="text-sm opacity-70">
-            {{ tournament.players.length }} players · max score {{ tournament.maxScore }}
+            {{ tournament.players.length }} players<template v-if="!isWinOnly(tournament)"> · max score
+            {{ tournament.maxScore }}</template>
           </span>
         </div>
       </div>

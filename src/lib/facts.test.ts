@@ -13,14 +13,16 @@ function p(id: string, name: string): Player {
 
 function makeTournament(opts: {
   id: string
-  matches: { a: PlayerId; b: PlayerId; winner: PlayerId; loserScore: number; at: number }[]
+  matches: { a: PlayerId; b: PlayerId; winner: PlayerId; loserScore: number | null; at: number }[]
   maxScore?: number
+  scoring?: 'points' | 'wins'
 }): Tournament {
   const max = opts.maxScore ?? 11
   return {
     id: opts.id,
     name: opts.id,
     mode: 'round-robin',
+    scoring: opts.scoring ?? 'points',
     maxScore: max,
     status: 'completed',
     createdAt: 0,
@@ -107,5 +109,56 @@ describe('pickFact', () => {
       const f = pickFact(facts, '1')
       expect(f?.id).toBe('2')
     }
+  })
+})
+
+describe('closest rivalry and win-only matches', () => {
+  const players = { a1: p('a1', 'Marcel'), a2: p('a2', 'Moritz') }
+
+  /** Four nail-biters: loser reaches 10 of 11 every time. */
+  const tightMatches = [0, 1, 2, 3].map((i) => ({
+    a: 'a1',
+    b: 'a2',
+    winner: i % 2 === 0 ? 'a1' : 'a2',
+    loserScore: 10,
+    at: LAST_MONTH + i,
+  }))
+
+  test('surfaces the fact from scored matches (positive case)', () => {
+    const t = makeTournament({ id: 'tight', matches: tightMatches })
+    const facts = generateFacts({ players, tournaments: [t], now: NOW })
+    const tight = facts.find((f) => f.id.startsWith('tight:'))
+    expect(tight).toBeDefined()
+    expect(tight!.text).toContain('11-10')
+  })
+
+  test('ignores win-only matches, which carry no score (negative case)', () => {
+    const quick = makeTournament({
+      id: 'quick',
+      scoring: 'wins',
+      matches: [0, 1, 2, 3].map((i) => ({
+        a: 'a1',
+        b: 'a2',
+        winner: i % 2 === 0 ? 'a1' : 'a2',
+        loserScore: null,
+        at: LAST_MONTH + i,
+      })),
+    })
+    const facts = generateFacts({ players, tournaments: [quick], now: NOW })
+    expect(facts.find((f) => f.id.startsWith('tight:'))).toBeUndefined()
+  })
+
+  test('a quick tournament does not drag the average of a scored rivalry', () => {
+    const scored = makeTournament({ id: 'tight', matches: tightMatches })
+    const quick = makeTournament({
+      id: 'quick',
+      scoring: 'wins',
+      matches: [{ a: 'a1', b: 'a2', winner: 'a1', loserScore: null, at: LAST_MONTH + 9 }],
+    })
+    const facts = generateFacts({ players, tournaments: [scored, quick], now: NOW })
+    const tight = facts.find((f) => f.id.startsWith('tight:'))
+    // Averages still come out 11-10; a counted win-only match would have
+    // pulled the loser average down to 8.
+    expect(tight!.text).toContain('11-10')
   })
 })

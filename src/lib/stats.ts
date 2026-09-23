@@ -33,8 +33,10 @@ export interface RecentResult {
   opponentId: PlayerId
   opponentName: string
   win: boolean
-  selfScore: number
-  opponentScore: number
+  /** null for a win-only (quick mode) result, which has no scoreline. */
+  selfScore: number | null
+  /** null for a win-only (quick mode) result, which has no scoreline. */
+  opponentScore: number | null
   playedAt: number
 }
 
@@ -43,7 +45,8 @@ interface RealMatch {
   a: PlayerId
   b: PlayerId
   winnerSide: 'a' | 'b'
-  loserScore: number
+  /** null when the match was recorded win-only (quick mode). */
+  loserScore: number | null
   maxScore: number
   playedAt: number
   tournamentId: string
@@ -62,7 +65,7 @@ function realMatches(tournaments: Tournament[]): RealMatch[] {
         a: m.a,
         b: m.b,
         winnerSide: m.winnerSide,
-        loserScore: m.loserScore ?? 0,
+        loserScore: m.loserScore,
         maxScore: t.maxScore,
         playedAt: m.playedAt ?? t.startedAt ?? t.createdAt,
         tournamentId: t.id,
@@ -117,14 +120,18 @@ export function globalPlayerStats(
     if (!w || !l) continue
     w.matches++
     w.wins++
-    w.pointsFor += m.maxScore
-    w.pointsAgainst += m.loserScore
     if (w.lastResults.length < 10) w.lastResults.push('W')
     l.matches++
     l.losses++
-    l.pointsFor += m.loserScore
-    l.pointsAgainst += m.maxScore
     if (l.lastResults.length < 10) l.lastResults.push('L')
+    // Win-only results count towards matches, W/L and win rate, but have no
+    // scoreline to fold into the points columns.
+    if (m.loserScore !== null) {
+      w.pointsFor += m.maxScore
+      w.pointsAgainst += m.loserScore
+      l.pointsFor += m.loserScore
+      l.pointsAgainst += m.maxScore
+    }
   }
 
   for (const s of stats.values()) {
@@ -164,14 +171,16 @@ export function playerHeadToHead(
       map.set(opponent, h)
     }
     h.matches++
-    if (isWin) {
-      h.wins++
-      h.pointsFor += m.maxScore
-      h.pointsAgainst += m.loserScore
-    } else {
-      h.losses++
-      h.pointsFor += m.loserScore
-      h.pointsAgainst += m.maxScore
+    if (isWin) h.wins++
+    else h.losses++
+    if (m.loserScore !== null) {
+      if (isWin) {
+        h.pointsFor += m.maxScore
+        h.pointsAgainst += m.loserScore
+      } else {
+        h.pointsFor += m.loserScore
+        h.pointsAgainst += m.maxScore
+      }
     }
   }
   for (const h of map.values()) {
@@ -201,8 +210,8 @@ export function recentResults(
       opponentId: opponent,
       opponentName: nameOf(players, opponent),
       win,
-      selfScore: win ? m.maxScore : m.loserScore,
-      opponentScore: win ? m.loserScore : m.maxScore,
+      selfScore: m.loserScore === null ? null : win ? m.maxScore : m.loserScore,
+      opponentScore: m.loserScore === null ? null : win ? m.loserScore : m.maxScore,
       playedAt: m.playedAt,
     })
   }

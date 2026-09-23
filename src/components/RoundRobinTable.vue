@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTournamentsStore } from '@/stores/tournaments'
+import { isWinOnly } from '@/lib/mode'
 import type { Tournament } from '@/types'
 
 const props = defineProps<{ tournament: Tournament }>()
 const store = useTournamentsStore()
+
+/** Quick mode has no points, so the Diff column would only ever show 0. */
+const showDiff = computed(() => !isWinOnly(props.tournament))
 
 const rows = computed(() =>
   store
@@ -25,7 +29,7 @@ const rows = computed(() =>
         <th class="px-2 py-2">Player</th>
         <th class="px-2 py-2 text-right w-12">W</th>
         <th class="px-2 py-2 text-right w-12">L</th>
-        <th class="px-2 py-2 text-right w-16">Diff</th>
+        <th v-if="showDiff" class="px-2 py-2 text-right w-16">Diff</th>
       </tr>
     </thead>
     <tbody>
@@ -40,6 +44,7 @@ const rows = computed(() =>
         <td class="px-2 py-2 text-right font-mono tabular-nums">{{ r.wins }}</td>
         <td class="px-2 py-2 text-right font-mono tabular-nums">{{ r.losses }}</td>
         <td
+          v-if="showDiff"
           class="px-2 py-2 text-right font-mono tabular-nums"
           :class="{
             'text-positive': r.pointDiff > 0,

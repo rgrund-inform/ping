@@ -68,3 +68,11 @@ button {
 .score-tap-btn {
   font-variant-numeric: tabular-nums;
 }
+
+/* Quick-mode winner buttons: big tap targets, one per player */
+.winner-tap-btn {
+  width: 100%;
+  min-height: 4rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+}

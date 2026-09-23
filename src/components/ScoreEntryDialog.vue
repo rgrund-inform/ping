@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import Button from 'primevue/button'
 import { useTournamentsStore } from '@/stores/tournaments'
+import { isWinOnly } from '@/lib/mode'
 import type { Match, Tournament } from '@/types'
 
 const props = defineProps<{
@@ -20,6 +21,8 @@ const stagedWinner = ref<'a' | 'b' | null>(null)
 const stagedLoserScore = ref<number | null>(null)
 
 const isEdit = computed(() => props.match?.winnerSide != null)
+/** Quick mode: pick a winner, no score at all. */
+const winOnly = computed(() => isWinOnly(props.tournament))
 
 watch(
   () => [props.visible, props.match?.id] as const,
@@ -63,9 +66,16 @@ function tap(losingSide: 'a' | 'b', score: number) {
   stagedLoserScore.value = score
 }
 
+/** Quick mode: tap the player who won; no score is recorded. */
+function tapWinner(side: 'a' | 'b') {
+  stagedWinner.value = side
+  stagedLoserScore.value = null
+}
+
 function confirm() {
   if (!props.match) return
-  if (stagedWinner.value === null || stagedLoserScore.value === null) return
+  if (stagedWinner.value === null) return
+  if (!winOnly.value && stagedLoserScore.value === null) return
   if (isEdit.value) {
     store.editResult(
       props.tournament.id,
@@ -94,7 +104,10 @@ const loserName = computed(() => {
   return stagedWinner.value === 'a' ? bName.value : aName.value
 })
 
-const header = computed(() => (isEdit.value ? 'Edit score' : 'Enter score'))
+const header = computed(() => {
+  if (winOnly.value) return isEdit.value ? 'Change winner' : 'Who won?'
+  return isEdit.value ? 'Edit score' : 'Enter score'
+})
 const saveLabel = computed(() => (isEdit.value ? 'Update result' : 'Save result'))
 </script>
 
@@ -109,10 +122,29 @@ const saveLabel = computed(() => (isEdit.value ? 'Update result' : 'Save result'
   >
     <div v-if="match" class="flex flex-col gap-4">
       <p class="text-sm opacity-70">
-        Tap the score under the player who <strong>lost</strong>. The winner reaches
-        {{ tournament.maxScore }}.
+        <template v-if="winOnly">
+          Tap the player who <strong>won</strong>. First to a two-point lead — no score to enter.
+        </template>
+        <template v-else>
+          Tap the score under the player who <strong>lost</strong>. The winner reaches
+          {{ tournament.maxScore }}.
+        </template>
       </p>
-      <div class="grid grid-cols-2 gap-3">
+
+      <div v-if="winOnly" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Button
+          v-for="side in (['a', 'b'] as const)"
+          :key="side"
+          :label="side === 'a' ? aName : bName"
+          icon="pi pi-trophy"
+          :severity="stagedWinner === side ? 'primary' : 'secondary'"
+          :outlined="stagedWinner !== side"
+          class="winner-tap-btn"
+          @click="tapWinner(side)"
+        />
+      </div>
+
+      <div v-else class="grid grid-cols-2 gap-3">
         <div
           v-for="side in (['a', 'b'] as const)"
           :key="side"
@@ -141,8 +173,8 @@ const saveLabel = computed(() => (isEdit.value ? 'Update result' : 'Save result'
         v-if="stagedWinner !== null"
         class="rounded-lg bg-primary-50 dark:bg-primary-900/40 border border-primary-300 dark:border-primary-700 p-3 text-center"
       >
-        <strong>{{ winnerName }}</strong> beat <strong>{{ loserName }}</strong>:
-        <span class="font-mono tabular-nums">{{ tournament.maxScore }} – {{ stagedLoserScore }}</span>
+        <strong>{{ winnerName }}</strong> beat <strong>{{ loserName }}</strong><template v-if="!winOnly">:
+        <span class="font-mono tabular-nums">{{ tournament.maxScore }} – {{ stagedLoserScore }}</span></template>
       </div>
     </div>
 

@@ -192,7 +192,13 @@ function fmtDate(ts: number): string {
             <div class="truncate">vs {{ r.opponentName }}</div>
             <div class="text-xs opacity-60 truncate">{{ r.tournamentName }} · {{ fmtDate(r.playedAt) }}</div>
           </div>
-          <div class="font-mono tabular-nums">{{ r.selfScore }}–{{ r.opponentScore }}</div>
+          <div v-if="r.selfScore !== null" class="font-mono tabular-nums">
+            {{ r.selfScore }}–{{ r.opponentScore }}
+          </div>
+          <!-- Quick-mode results have no scoreline, just the outcome. -->
+          <div v-else class="text-xs uppercase tracking-wide opacity-60">
+            {{ r.win ? 'Win' : 'Loss' }}
+          </div>
         </button>
       </div>
     </section>

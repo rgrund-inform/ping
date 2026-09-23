@@ -10,12 +10,14 @@ function tournament(opts: {
   id: string
   players: PlayerId[]
   maxScore?: number
-  matches: { a: PlayerId; b: PlayerId; winner: PlayerId; loserScore: number; at: number }[]
+  scoring?: 'points' | 'wins'
+  matches: { a: PlayerId; b: PlayerId; winner: PlayerId; loserScore: number | null; at: number }[]
 }): Tournament {
   return {
     id: opts.id,
     name: opts.id,
     mode: 'round-robin',
+    scoring: opts.scoring ?? 'points',
     maxScore: opts.maxScore ?? 11,
     status: 'completed',
     createdAt: 0,
@@ -127,5 +129,68 @@ describe('currentStreak', () => {
     expect(currentStreak([])).toBeNull()
     expect(currentStreak(['W', 'W', 'L', 'W'])).toEqual({ kind: 'W', n: 2 })
     expect(currentStreak(['L', 'L', 'L', 'W'])).toEqual({ kind: 'L', n: 3 })
+  })
+})
+
+describe('quick-mode (win-only) matches in global stats', () => {
+  const quick = tournament({
+    id: 'q1',
+    players: ['x', 'y'],
+    scoring: 'wins',
+    matches: [
+      { a: 'x', b: 'y', winner: 'x', loserScore: null, at: 100 },
+      { a: 'x', b: 'y', winner: 'y', loserScore: null, at: 200 },
+      { a: 'x', b: 'y', winner: 'x', loserScore: null, at: 300 },
+    ],
+  })
+
+  test('count towards matches, wins and win rate', () => {
+    const stats = globalPlayerStats(players, [quick])
+    const x = stats.find((s) => s.playerId === 'x')!
+    expect(x.matches).toBe(3)
+    expect(x.wins).toBe(2)
+    expect(x.losses).toBe(1)
+    expect(x.winRate).toBeCloseTo(2 / 3)
+  })
+
+  test('leave the points columns untouched', () => {
+    const stats = globalPlayerStats(players, [quick])
+    for (const id of ['x', 'y']) {
+      const s = stats.find((st) => st.playerId === id)!
+      expect(s.pointsFor).toBe(0)
+      expect(s.pointsAgainst).toBe(0)
+      expect(s.pointDiff).toBe(0)
+    }
+  })
+
+  test('mixing quick and scored tournaments only counts the scored points', () => {
+    const scored = tournament({
+      id: 't1',
+      players: ['x', 'y'],
+      matches: [{ a: 'x', b: 'y', winner: 'x', loserScore: 4, at: 400 }],
+    })
+    const x = globalPlayerStats(players, [quick, scored]).find((s) => s.playerId === 'x')!
+    expect(x.matches).toBe(4)
+    expect(x.wins).toBe(3)
+    expect(x.pointsFor).toBe(11)
+    expect(x.pointsAgainst).toBe(4)
+    expect(x.pointDiff).toBe(7)
+  })
+
+  test('head-to-head counts the games but not the points', () => {
+    const h2h = playerHeadToHead('x', players, [quick])
+    expect(h2h).toHaveLength(1)
+    expect(h2h[0].matches).toBe(3)
+    expect(h2h[0].wins).toBe(2)
+    expect(h2h[0].pointsFor).toBe(0)
+    expect(h2h[0].pointsAgainst).toBe(0)
+  })
+
+  test('recent results report the outcome with a null scoreline', () => {
+    const recent = recentResults('x', players, [quick])
+    expect(recent).toHaveLength(3)
+    expect(recent[0].win).toBe(true)
+    expect(recent[0].selfScore).toBeNull()
+    expect(recent[0].opponentScore).toBeNull()
   })
 })

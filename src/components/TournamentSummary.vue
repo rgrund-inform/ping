@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import Tag from 'primevue/tag'
 import { champion, standings } from '@/lib/scoring'
+import { isWinOnly, modeLabel } from '@/lib/mode'
 import type { Player, PlayerId, Tournament } from '@/types'
 
 /**
@@ -49,10 +50,7 @@ const tableTitle = computed(() =>
 <template>
   <div class="flex flex-col gap-2 text-sm">
     <div class="flex flex-wrap gap-2 items-center">
-      <Tag
-        :value="tournament.mode === 'round-robin' ? 'Round-robin' : 'Knockout'"
-        severity="secondary"
-      />
+      <Tag :value="modeLabel(tournament)" severity="secondary" />
       <Tag :value="statusLabel" :severity="statusSeverity" />
       <span class="opacity-70">
         {{ tournament.players.length }} players · {{ playedCount }}/{{ playable.length }} matches played
@@ -81,7 +79,9 @@ const tableTitle = computed(() =>
           </span>
           <span class="ml-auto opacity-70 tabular-nums whitespace-nowrap">
             {{ s.wins }}–{{ s.losses }}
-            <span class="text-xs">({{ s.pointDiff >= 0 ? '+' : '' }}{{ s.pointDiff }})</span>
+            <span v-if="!isWinOnly(tournament)" class="text-xs">
+              ({{ s.pointDiff >= 0 ? '+' : '' }}{{ s.pointDiff }})
+            </span>
           </span>
         </li>
       </ol>

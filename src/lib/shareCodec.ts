@@ -1,5 +1,6 @@
 import type { Match, Player, PlayerId, Tournament } from '../types'
 import { uid } from './id'
+import { isWinOnly } from './mode'
 import { validateTournament } from './transfer'
 
 export const SHARE_VERSION = 2
@@ -21,6 +22,10 @@ export const SHARE_VERSION = 2
  * safe sentinel. Absolute 13-digit timestamps are unique per match and barely
  * compress; small deltas cut the final payload by roughly a quarter.
  * Only v2 is written; v1 links stay decodable.
+ *
+ * Quick (win-only) tournaments add an optional `q: 1`. It is additive rather
+ * than a version bump so existing links keep working: a payload without `q`
+ * decodes as a scored tournament, exactly as before.
  */
 interface SharePayloadV1 {
   v: 1
@@ -30,6 +35,8 @@ interface SharePayloadV1 {
   m: 0 | 1
   /** maxScore. */
   x: number
+  /** Win-only scoring (quick mode): 1 when set, omitted for scored tournaments. */
+  q?: 0 | 1
   /** Seeding: 0 random, 1 win-rate; omitted when undefined. */
   g?: 0 | 1
   /** Status: 0 setup, 1 running, 2 completed. */
@@ -97,6 +104,7 @@ export async function encodeTournamentShare(
       m.bye ? 1 : 0,
     ]),
   }
+  if (isWinOnly(tournament)) payload.q = 1
   if (tournament.seeding !== undefined) payload.g = tournament.seeding === 'win-rate' ? 1 : 0
   if (tournament.startedAt !== undefined) payload.st = tournament.startedAt
   if (tournament.completedAt !== undefined) payload.co = tournament.completedAt
@@ -171,6 +179,7 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
     id: uid(),
     name: parsed.n,
     mode: parsed.m === 1 ? 'knockout' : 'round-robin',
+    scoring: parsed.q === 1 ? 'wins' : 'points',
     maxScore: parsed.x,
     seeding: parsed.g === undefined ? undefined : parsed.g === 1 ? 'win-rate' : 'random',
     status: parsed.s === 0 ? 'setup' : parsed.s === 1 ? 'running' : 'completed',
@@ -203,6 +212,7 @@ function isSharePayload(v: Record<string, unknown>): v is SharePayload & Record<
   if (typeof v.n !== 'string') return false
   if (v.m !== 0 && v.m !== 1) return false
   if (typeof v.x !== 'number') return false
+  if (v.q !== undefined && v.q !== 0 && v.q !== 1) return false
   if (v.g !== undefined && v.g !== 0 && v.g !== 1) return false
   if (v.s !== 0 && v.s !== 1 && v.s !== 2) return false
   if (typeof v.c !== 'number') return false

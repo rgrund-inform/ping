@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import InputNumber from 'primevue/inputnumber'
@@ -7,7 +7,7 @@ import SelectButton from 'primevue/selectbutton'
 import Button from 'primevue/button'
 import PlayerPicker from './PlayerPicker.vue'
 import { useTournamentsStore } from '@/stores/tournaments'
-import type { PlayerId, Seeding, TournamentMode } from '@/types'
+import type { PlayerId, ScoringMode, Seeding, TournamentMode } from '@/types'
 
 const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{
@@ -15,14 +15,21 @@ const emit = defineEmits<{
   created: [string]
 }>()
 
+/**
+ * The picker offers three modes, but only two of them are scheduling modes:
+ * "quick" is a round-robin that records winners instead of scores.
+ */
+type ModeChoice = 'quick' | 'round-robin' | 'knockout'
+
 const store = useTournamentsStore()
 const name = ref('')
-const mode = ref<TournamentMode>('round-robin')
+const modeChoice = ref<ModeChoice>('round-robin')
 const maxScore = ref(7)
 const seeding = ref<Seeding>('win-rate')
 const players = ref<PlayerId[]>([])
 
 const modeOptions = [
+  { label: 'Quick', value: 'quick' },
   { label: 'Round-robin', value: 'round-robin' },
   { label: 'Knockout', value: 'knockout' },
 ]
@@ -31,12 +38,20 @@ const seedOptions = [
   { label: 'Random', value: 'random' },
 ]
 
+const modeHint: Record<ModeChoice, string> = {
+  quick: 'Everyone plays everyone. Just tap who won — first to a two-point lead. No scores to enter.',
+  'round-robin': 'Everyone plays everyone. Most wins takes it.',
+  knockout: 'Single elimination tree. Top seeds get byes when player count is uneven.',
+}
+
+const isQuick = computed(() => modeChoice.value === 'quick')
+
 watch(
   () => props.visible,
   (v) => {
     if (v) {
       name.value = defaultName()
-      mode.value = 'round-robin'
+      modeChoice.value = 'round-robin'
       maxScore.value = 7
       seeding.value = 'win-rate'
       players.value = []
@@ -55,11 +70,14 @@ function close() {
 
 function submit() {
   if (players.value.length < 2) return
+  const mode: TournamentMode = modeChoice.value === 'knockout' ? 'knockout' : 'round-robin'
+  const scoring: ScoringMode = isQuick.value ? 'wins' : 'points'
   const t = store.createTournament({
     name: name.value,
-    mode: mode.value,
+    mode,
+    scoring,
     maxScore: maxScore.value,
-    seeding: mode.value === 'knockout' ? seeding.value : undefined,
+    seeding: mode === 'knockout' ? seeding.value : undefined,
     players: players.value,
   })
   store.startTournament(t.id)
@@ -85,17 +103,17 @@ function submit() {
 
       <div class="flex flex-col gap-1">
         <label class="text-sm font-medium">Mode</label>
-        <SelectButton v-model="mode" :options="modeOptions" option-label="label" option-value="value" />
-        <p class="text-xs opacity-70">
-          {{
-            mode === 'round-robin'
-              ? 'Everyone plays everyone. Most wins takes it.'
-              : 'Single elimination tree. Top seeds get byes when player count is uneven.'
-          }}
-        </p>
+        <SelectButton
+          v-model="modeChoice"
+          :options="modeOptions"
+          option-label="label"
+          option-value="value"
+          :allow-empty="false"
+        />
+        <p class="text-xs opacity-70">{{ modeHint[modeChoice] }}</p>
       </div>
 
-      <div class="flex gap-4">
+      <div v-if="!isQuick" class="flex gap-4">
         <div class="flex flex-col gap-1 flex-1">
           <label class="text-sm font-medium">Max score (winning score)</label>
           <InputNumber
@@ -113,7 +131,7 @@ function submit() {
         </div>
       </div>
 
-      <div v-if="mode === 'knockout'" class="flex flex-col gap-1">
+      <div v-if="modeChoice === 'knockout'" class="flex flex-col gap-1">
         <label class="text-sm font-medium">Seeding</label>
         <SelectButton v-model="seeding" :options="seedOptions" option-label="label" option-value="value" />
       </div>

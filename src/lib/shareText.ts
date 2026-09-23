@@ -1,4 +1,5 @@
 import type { Player, PlayerId, Tournament } from '../types'
+import { modeLabel } from './mode'
 import { champion, standings } from './scoring'
 
 /**
@@ -13,7 +14,7 @@ export function shareSummaryText(
   const nameOf = (id: PlayerId | null) => (id ? players[id]?.name ?? '?' : '?')
   const playable = tournament.matches.filter((m) => !m.bye)
   const played = playable.filter((m) => m.winnerSide !== null).length
-  const mode = tournament.mode === 'round-robin' ? 'Round-robin' : 'Knockout'
+  const mode = modeLabel(tournament)
   const completed = tournament.status === 'completed'
 
   const lines = [

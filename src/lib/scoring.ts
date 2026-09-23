@@ -1,5 +1,6 @@
 import type { Match, PlayerId, Tournament } from '../types'
 import { promoteWinner } from './bracket'
+import { isWinOnly } from './mode'
 
 /** The next-round match an edge feeds into (knockout only). */
 function nextBracketMatch(matches: Match[], m: Match): Match | undefined {
@@ -18,14 +19,17 @@ export interface Standing {
   pointDiff: number
 }
 
-/** Mutates `match` to record the result. Loser score must be in [0, maxScore-1]. */
+/**
+ * Mutates `match` to record the result. Loser score must be in [0, maxScore-1],
+ * or `null` for a win-only result (quick mode records no score at all).
+ */
 export function recordMatchResult(
   match: Match,
   winnerSide: 'a' | 'b',
-  loserScore: number,
+  loserScore: number | null,
   maxScore: number,
 ): void {
-  if (loserScore < 0 || loserScore >= maxScore) {
+  if (loserScore !== null && (loserScore < 0 || loserScore >= maxScore)) {
     throw new Error(`loserScore must be in [0, ${maxScore - 1}]`)
   }
   match.winnerSide = winnerSide
@@ -33,17 +37,29 @@ export function recordMatchResult(
   match.playedAt = Date.now()
 }
 
+/**
+ * Normalise an incoming score against the tournament's scoring mode: win-only
+ * tournaments never store one, point tournaments always need one. Keeping this
+ * in one place stops a caller from writing a score into a quick tournament (or
+ * dropping one from a scored tournament) and silently corrupting the standings.
+ */
+function normaliseScore(t: Tournament, loserScore: number | null): number | null {
+  if (isWinOnly(t)) return null
+  if (loserScore === null) throw new Error('loserScore is required for this tournament')
+  return loserScore
+}
+
 /** Apply a result to a tournament; for knockouts also promotes the winner. */
 export function applyResult(
   tournament: Tournament,
   matchId: string,
   winnerSide: 'a' | 'b',
-  loserScore: number,
+  loserScore: number | null,
 ): void {
   const match = tournament.matches.find((m) => m.id === matchId)
   if (!match) throw new Error('match not found')
   if (match.winnerSide !== null) throw new Error('match already played; results are final')
-  recordMatchResult(match, winnerSide, loserScore, tournament.maxScore)
+  recordMatchResult(match, winnerSide, normaliseScore(tournament, loserScore), tournament.maxScore)
   if (tournament.mode === 'knockout') {
     promoteWinner(tournament.matches, match)
   }
@@ -77,13 +93,14 @@ export function editResult(
   tournament: Tournament,
   matchId: string,
   winnerSide: 'a' | 'b',
-  loserScore: number,
+  loserScore: number | null,
 ): void {
   const match = tournament.matches.find((m) => m.id === matchId)
   if (!match) throw new Error('match not found')
   if (match.winnerSide === null) throw new Error('match has not been played; use recordResult')
   if (match.bye) throw new Error('cannot edit a bye')
-  if (loserScore < 0 || loserScore >= tournament.maxScore) {
+  const score = normaliseScore(tournament, loserScore)
+  if (score !== null && (score < 0 || score >= tournament.maxScore)) {
     throw new Error(`loserScore must be in [0, ${tournament.maxScore - 1}]`)
   }
 
@@ -102,7 +119,7 @@ export function editResult(
   }
 
   match.winnerSide = winnerSide
-  match.loserScore = loserScore
+  match.loserScore = score
   match.playedAt = Date.now()
 
   // Recompute completion status; in practice this only flips if the final's
@@ -140,6 +157,9 @@ export function nextMatches(t: Tournament, n = 5): Match[] {
  * simply the winner of the direct match). Unplayed head-to-heads and circular
  * ties (A>B, B>C, C>A) leave the mini-league level, so overall point diff
  * decides; a stable sort keeps insertion order as the final fallback.
+ *
+ * In a win-only tournament every point diff is 0, so the ranking is wins then
+ * head-to-head, which is exactly the intended quick-mode behaviour.
  */
 export function standings(t: Tournament): Standing[] {
   const map = new Map<PlayerId, Standing>()
@@ -164,12 +184,16 @@ export function standings(t: Tournament): Standing[] {
     if (!w || !l) continue
     w.wins++
     w.played++
-    w.pointsFor += t.maxScore
-    w.pointsAgainst += m.loserScore ?? 0
     l.losses++
     l.played++
-    l.pointsFor += m.loserScore ?? 0
-    l.pointsAgainst += t.maxScore
+    // Win-only results carry no score, so they count towards W/L but leave the
+    // points columns (and therefore point diff) alone.
+    if (m.loserScore !== null) {
+      w.pointsFor += t.maxScore
+      w.pointsAgainst += m.loserScore
+      l.pointsFor += m.loserScore
+      l.pointsAgainst += t.maxScore
+    }
   }
   const list = [...map.values()]
   for (const s of list) s.pointDiff = s.pointsFor - s.pointsAgainst

@@ -217,3 +217,70 @@ describe('remapTournament', () => {
     expect(out.matches[0].b).toBeNull()
   })
 })
+
+describe('scoring mode through export/import', () => {
+  function quickStore(): PingStore {
+    return {
+      version: 1,
+      players: {
+        p1: { id: 'p1', name: 'Alice', createdAt: 1700000000000 },
+        p2: { id: 'p2', name: 'Bob', createdAt: 1700000000001 },
+      },
+      tournaments: [
+        {
+          id: 'q1',
+          name: 'Coffee Break',
+          mode: 'round-robin',
+          scoring: 'wins',
+          maxScore: 7,
+          status: 'running',
+          createdAt: 1700000000000,
+          players: ['p1', 'p2'],
+          matches: [
+            {
+              id: 'm1',
+              round: 1,
+              a: 'p1',
+              b: 'p2',
+              winnerSide: 'a',
+              loserScore: null,
+              playedAt: 1700000000200,
+            },
+          ],
+          bracketLocked: false,
+        },
+      ],
+    }
+  }
+
+  test('survives a full export/import round-trip', () => {
+    const result = parseExport(buildExport(quickStore()))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const t = result.data.tournaments[0]
+    expect(t.scoring).toBe('wins')
+    expect(t.matches[0].loserScore).toBeNull()
+  })
+
+  test('a tournament without scoring is read as points', () => {
+    const result = parseExport(buildExport(sampleStore()))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.tournaments[0].scoring).toBe('points')
+  })
+
+  test('an unknown scoring value falls back to points rather than failing', () => {
+    const store = quickStore()
+    ;(store.tournaments[0] as unknown as { scoring: string }).scoring = 'bogus'
+    const result = parseExport(buildExport(store))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.tournaments[0].scoring).toBe('points')
+  })
+
+  test('remapTournament carries the scoring mode over', () => {
+    const t = quickStore().tournaments[0]
+    const out = remapTournament(t, { p1: 'x1', p2: 'x2' }, 'new')
+    expect(out.scoring).toBe('wins')
+  })
+})

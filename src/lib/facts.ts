@@ -1,4 +1,5 @@
 import type { Fact, Match, Player, PlayerId, Tournament } from '../types'
+import { startOfDay } from './date'
 
 export interface FactInput {
   players: Record<PlayerId, Player>
@@ -26,12 +27,6 @@ function allPlayedMatches(input: FactInput): PlayedMatch[] {
 function nameOf(input: FactInput, id: PlayerId | null): string {
   if (!id) return '?'
   return input.players[id]?.name ?? '?'
-}
-
-function startOfDay(ts: number): number {
-  const d = new Date(ts)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
 }
 
 type Generator = (input: FactInput, played: PlayedMatch[]) => Fact[]
@@ -136,12 +131,14 @@ const generators: Generator[] = [
       string,
       { a: PlayerId; b: PlayerId; n: number; sumLoser: number; sumMax: number }
     >()
-    for (const m of played) {
+    // Win-only (quick mode) matches carry no score; counting them would read as
+    // a 0-point blowout and drag every pair's average away from "nail-biter".
+    for (const m of played.filter((x) => x.loserScore !== null)) {
       const [x, y] = m.a! < m.b! ? [m.a!, m.b!] : [m.b!, m.a!]
       const key = `${x}|${y}`
       const p = pairs.get(key) ?? { a: x, b: y, n: 0, sumLoser: 0, sumMax: 0 }
       p.n++
-      p.sumLoser += m.loserScore ?? 0
+      p.sumLoser += m.loserScore!
       p.sumMax += m.tournament.maxScore
       pairs.set(key, p)
     }

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { champion } from '@/lib/scoring'
+import { modeLabel } from '@/lib/mode'
 import FactCard from '@/components/FactCard.vue'
 
 const router = useRouter()
@@ -85,7 +86,7 @@ const totalMatches = computed(() =>
           <div>
             <div class="font-semibold">{{ t.name }}</div>
             <div class="text-xs opacity-70">
-              {{ t.mode === 'round-robin' ? 'Round-robin' : 'Knockout' }}
+              {{ modeLabel(t) }}
               · {{ t.players.length }} players · {{ dateLabel(t.completedAt ?? t.startedAt ?? t.createdAt) }}
             </div>
           </div>

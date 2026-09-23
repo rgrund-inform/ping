@@ -5,6 +5,7 @@ import Button from 'primevue/button'
 import { useToast } from 'primevue/usetoast'
 import { useTournamentsStore } from '@/stores/tournaments'
 import { parseTournamentExport } from '@/lib/transfer'
+import { modeLabel } from '@/lib/mode'
 import type { Player, PlayerId, Tournament } from '@/types'
 import NewTournamentDialog from '@/components/NewTournamentDialog.vue'
 import ImportTournamentDialog from '@/components/ImportTournamentDialog.vue'
@@ -31,10 +32,6 @@ function dateLabel(ts: number): string {
     day: 'numeric',
     year: 'numeric',
   })
-}
-
-function modeLabel(mode: string): string {
-  return mode === 'round-robin' ? 'Round-robin' : 'Knockout'
 }
 
 function onCreated(id: string) {
@@ -108,7 +105,7 @@ function onImported(id: string) {
           class="text-left p-4 rounded-lg border border-primary-300 bg-primary-50 dark:bg-primary-900/30 hover:border-primary-500 transition-colors cursor-pointer"
           @click="open(t.id)"
         >
-          <div class="text-xs uppercase tracking-wide opacity-60">{{ modeLabel(t.mode) }}</div>
+          <div class="text-xs uppercase tracking-wide opacity-60">{{ modeLabel(t) }}</div>
           <div class="font-semibold text-lg">{{ t.name }}</div>
           <div class="text-sm opacity-70">
             {{ t.players.length }} players · started {{ dateLabel(t.startedAt ?? t.createdAt) }}
@@ -126,7 +123,7 @@ function onImported(id: string) {
           class="text-left p-4 rounded-lg border border-surface-200 dark:border-surface-700 hover:border-primary-400 transition-colors cursor-pointer"
           @click="open(t.id)"
         >
-          <div class="text-xs uppercase tracking-wide opacity-60">{{ modeLabel(t.mode) }}</div>
+          <div class="text-xs uppercase tracking-wide opacity-60">{{ modeLabel(t) }}</div>
           <div class="font-semibold">{{ t.name }}</div>
           <div class="text-sm opacity-70">
             {{ t.players.length }} players · {{ dateLabel(t.completedAt ?? t.createdAt) }}

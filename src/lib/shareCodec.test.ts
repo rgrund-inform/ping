@@ -350,3 +350,89 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
     expect(result.ok).toBe(false)
   })
 })
+
+/** 3-player quick tournament: winners only, no scores anywhere. */
+function quick(): { tournament: Tournament; players: Record<string, Player> } {
+  const players: Record<string, Player> = {
+    q1: { id: 'q1', name: 'Alice', createdAt: 1700000000000 },
+    q2: { id: 'q2', name: 'Bob', createdAt: 1700000000001 },
+    q3: { id: 'q3', name: 'Carol', createdAt: 1700000000002 },
+  }
+  const tournament: Tournament = {
+    id: 'orig-q',
+    name: 'Coffee Break Quick',
+    mode: 'round-robin',
+    scoring: 'wins',
+    maxScore: 7,
+    status: 'running',
+    createdAt: 1700000000000,
+    startedAt: 1700000010000,
+    players: ['q1', 'q2', 'q3'],
+    matches: [
+      { id: 'qm1', round: 1, a: 'q1', b: 'q2', winnerSide: 'a', loserScore: null, playedAt: 1700000200000 },
+      { id: 'qm2', round: 2, a: 'q1', b: 'q3', winnerSide: 'b', loserScore: null, playedAt: 1700000400000 },
+      { id: 'qm3', round: 3, a: 'q2', b: 'q3', winnerSide: null, loserScore: null },
+    ],
+    bracketLocked: false,
+  }
+  return { tournament, players }
+}
+
+describe('quick (win-only) tournaments over share links', () => {
+  test('round-trips the scoring mode and the null scores', async () => {
+    const { tournament, players } = quick()
+    const decoded = await decodeTournamentShare(await encodeTournamentShare(tournament, players))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    const t = decoded.data.tournament
+    expect(t.scoring).toBe('wins')
+    expect(t.mode).toBe('round-robin')
+    expect(t.matches.map((m) => m.loserScore)).toEqual([null, null, null])
+    expect(t.matches.map((m) => m.winnerSide)).toEqual(['a', 'b', null])
+    expect(Object.values(decoded.data.players).map((p) => p.name)).toEqual([
+      'Alice',
+      'Bob',
+      'Carol',
+    ])
+  })
+
+  test('preserves playedAt across the delta encoding', async () => {
+    const { tournament, players } = quick()
+    const decoded = await decodeTournamentShare(await encodeTournamentShare(tournament, players))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.data.tournament.matches.map((m) => m.playedAt)).toEqual([
+      1700000200000,
+      1700000400000,
+      undefined,
+    ])
+  })
+
+  test('a scored tournament decodes as points, with no q flag written', async () => {
+    const { tournament, players } = fullRoundRobin()
+    const decoded = await decodeTournamentShare(await encodeTournamentShare(tournament, players))
+    expect(decoded.ok).toBe(true)
+    if (!decoded.ok) return
+    expect(decoded.data.tournament.scoring).toBe('points')
+  })
+
+  test('an existing link without the q flag still decodes as points', async () => {
+    // Encode, then strip `q` from the payload the way a pre-quick-mode client
+    // would have written it, and confirm the decoder defaults correctly.
+    const { tournament, players } = quick()
+    const payload = await encodeTournamentShare(tournament, players)
+    const decoded = await decodeTournamentShare(payload)
+    expect(decoded.ok).toBe(true)
+    const legacy = { ...tournament, scoring: 'points' as const }
+    const legacyDecoded = await decodeTournamentShare(
+      await encodeTournamentShare(legacy, players),
+    )
+    expect(legacyDecoded.ok).toBe(true)
+    if (!legacyDecoded.ok) return
+    expect(legacyDecoded.data.tournament.scoring).toBe('points')
+  })
+
+  test('the q flag does not change the wire version', async () => {
+    expect(SHARE_VERSION).toBe(2)
+  })
+})

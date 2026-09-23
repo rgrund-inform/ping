@@ -3,6 +3,8 @@ export type MatchId = string
 export type TournamentId = string
 
 export type TournamentMode = 'round-robin' | 'knockout'
+/** How a result is recorded: full scoreline, or just the winner (quick mode). */
+export type ScoringMode = 'points' | 'wins'
 export type TournamentStatus = 'setup' | 'running' | 'completed'
 export type Seeding = 'win-rate' | 'random'
 
@@ -20,7 +22,10 @@ export interface Match {
   a: PlayerId | null
   b: PlayerId | null
   winnerSide: 'a' | 'b' | null
-  /** 0..maxScore-1; null when match not yet played or auto-bye. */
+  /**
+   * 0..maxScore-1; null when the match is unplayed, an auto-bye, or was
+   * recorded in a win-only tournament (`scoring: 'wins'`).
+   */
   loserScore: number | null
   playedAt?: number
   /** Auto-advanced bye match (knockout only). */
@@ -31,6 +36,13 @@ export interface Tournament {
   id: TournamentId
   name: string
   mode: TournamentMode
+  /**
+   * How results are recorded. 'points' stores the loser's score; 'wins'
+   * records only the winner (quick mode). Undefined on tournaments created
+   * before quick mode existed — treat it as 'points'.
+   */
+  scoring?: ScoringMode
+  /** Winning score. Meaningless (and hidden) when `scoring` is 'wins'. */
   maxScore: number
   seeding?: Seeding
   status: TournamentStatus

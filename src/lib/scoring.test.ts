@@ -305,3 +305,123 @@ describe('knockout completion + champion', () => {
     expect(champion(t)).toBe('a')
   })
 })
+
+// ---- quick mode (scoring: 'wins') ----
+
+function quickTournament(players: string[]): Tournament {
+  return {
+    id: 't',
+    name: 'Quick',
+    mode: 'round-robin',
+    scoring: 'wins',
+    maxScore: 7,
+    status: 'running',
+    createdAt: 0,
+    players,
+    matches: buildRoundRobinMatches(players),
+    bracketLocked: false,
+  }
+}
+
+function matchBetween(t: Tournament, x: string, y: string) {
+  const m = t.matches.find(
+    (mm) => (mm.a === x && mm.b === y) || (mm.a === y && mm.b === x),
+  )
+  if (!m) throw new Error(`no match between ${x} and ${y}`)
+  return m
+}
+
+/** Record `winner` as beating `loser`, whichever side they sit on. */
+function quickWin(t: Tournament, winner: string, loser: string) {
+  const m = matchBetween(t, winner, loser)
+  applyResult(t, m.id, m.a === winner ? 'a' : 'b', null)
+}
+
+describe('quick mode results', () => {
+  test('applyResult stores a winner and no score', () => {
+    const t = quickTournament(['a', 'b'])
+    const m = t.matches[0]
+    applyResult(t, m.id, 'a', null)
+    expect(m.winnerSide).toBe('a')
+    expect(m.loserScore).toBeNull()
+    expect(m.playedAt).toBeGreaterThan(0)
+  })
+
+  test('a score passed by mistake is discarded, not stored', () => {
+    const t = quickTournament(['a', 'b'])
+    const m = t.matches[0]
+    applyResult(t, m.id, 'b', 5)
+    expect(m.winnerSide).toBe('b')
+    expect(m.loserScore).toBeNull()
+  })
+
+  test('a scored tournament still refuses a null score', () => {
+    const t = rrTournament(['a', 'b'])
+    const m = t.matches[0]
+    expect(() => applyResult(t, m.id, 'a', null)).toThrow(/loserScore is required/)
+    expect(m.winnerSide).toBeNull()
+  })
+
+  test('completes when every match has a winner', () => {
+    const t = quickTournament(['a', 'b', 'c'])
+    quickWin(t, 'a', 'b')
+    quickWin(t, 'a', 'c')
+    expect(isComplete(t)).toBe(false)
+    quickWin(t, 'b', 'c')
+    expect(isComplete(t)).toBe(true)
+    expect(t.status).toBe('completed')
+  })
+
+  test('editResult flips the winner and keeps the score null', () => {
+    const t = quickTournament(['a', 'b'])
+    const m = t.matches[0]
+    applyResult(t, m.id, 'a', null)
+    editResult(t, m.id, 'b', null)
+    expect(m.winnerSide).toBe('b')
+    expect(m.loserScore).toBeNull()
+  })
+})
+
+describe('quick mode standings', () => {
+  test('counts wins and losses but leaves points at zero', () => {
+    const t = quickTournament(['a', 'b', 'c'])
+    quickWin(t, 'a', 'b')
+    quickWin(t, 'a', 'c')
+    quickWin(t, 'b', 'c')
+    const table = standings(t)
+    expect(table.map((s) => s.playerId)).toEqual(['a', 'b', 'c'])
+    expect(table.map((s) => [s.wins, s.losses, s.played])).toEqual([
+      [2, 0, 2],
+      [1, 1, 2],
+      [0, 2, 2],
+    ])
+    for (const s of table) {
+      expect(s.pointsFor).toBe(0)
+      expect(s.pointsAgainst).toBe(0)
+      expect(s.pointDiff).toBe(0)
+    }
+  })
+
+  test('a two-way tie on wins is broken by the direct match', () => {
+    // a and b both finish 1-1; b beat a head-to-head, so b ranks first.
+    const t = quickTournament(['a', 'b', 'c'])
+    quickWin(t, 'b', 'a')
+    quickWin(t, 'a', 'c')
+    quickWin(t, 'c', 'b')
+    const table = standings(t)
+    expect(table.every((s) => s.wins === 1)).toBe(true)
+    // Circular tie (a>c, c>b, b>a): every head-to-head count is level, so the
+    // order is the stable insertion order rather than an arbitrary reshuffle.
+    expect(table.map((s) => s.playerId)).toEqual(['a', 'b', 'c'])
+  })
+
+  test('head-to-head decides when only two players are tied', () => {
+    const t = quickTournament(['a', 'b', 'c'])
+    quickWin(t, 'c', 'a')
+    quickWin(t, 'c', 'b')
+    quickWin(t, 'b', 'a')
+    const table = standings(t)
+    expect(table.map((s) => s.playerId)).toEqual(['c', 'b', 'a'])
+    expect(table[0].wins).toBe(2)
+  })
+})

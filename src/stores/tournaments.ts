@@ -3,6 +3,7 @@ import type {
   Match,
   Player,
   PlayerId,
+  ScoringMode,
   Seeding,
   Tournament,
   TournamentId,
@@ -83,6 +84,8 @@ export const useTournamentsStore = defineStore('ping', {
       name: string
       mode: TournamentMode
       maxScore: number
+      /** Defaults to 'points'; 'wins' creates a quick tournament. */
+      scoring?: ScoringMode
       seeding?: Seeding
       players: PlayerId[]
     }): Tournament {
@@ -90,6 +93,7 @@ export const useTournamentsStore = defineStore('ping', {
         id: uid(),
         name: input.name.trim() || 'Tournament',
         mode: input.mode,
+        scoring: input.scoring ?? 'points',
         maxScore: input.maxScore,
         seeding: input.mode === 'knockout' ? input.seeding ?? 'win-rate' : undefined,
         status: 'setup',
@@ -156,22 +160,24 @@ export const useTournamentsStore = defineStore('ping', {
       }
     },
 
+    /** `loserScore` is null for win-only (quick) tournaments. */
     recordResult(
       tournamentId: TournamentId,
       matchId: string,
       winnerSide: 'a' | 'b',
-      loserScore: number,
+      loserScore: number | null,
     ): void {
       const t = this.tournament(tournamentId)
       if (!t) return
       applyResult(t, matchId, winnerSide, loserScore)
     },
 
+    /** `loserScore` is null for win-only (quick) tournaments. */
     editResult(
       tournamentId: TournamentId,
       matchId: string,
       winnerSide: 'a' | 'b',
-      loserScore: number,
+      loserScore: number | null,
     ): void {
       const t = this.tournament(tournamentId)
       if (!t) return

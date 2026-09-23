@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useTournamentsStore } from '@/stores/tournaments'
+import { isWinOnly } from '@/lib/mode'
 import type { Match, Tournament } from '@/types'
 
 const props = defineProps<{
@@ -17,12 +18,14 @@ const aName = computed(() => playerName(props.match.a))
 const bName = computed(() => playerName(props.match.b))
 
 const winnerSide = computed(() => props.match.winnerSide)
+/** Quick mode shows a trophy next to the winner instead of a scoreline. */
+const winOnly = computed(() => isWinOnly(props.tournament))
 const aScore = computed(() => {
-  if (winnerSide.value === null) return null
+  if (winnerSide.value === null || winOnly.value) return null
   return winnerSide.value === 'a' ? props.tournament.maxScore : (props.match.loserScore ?? 0)
 })
 const bScore = computed(() => {
-  if (winnerSide.value === null) return null
+  if (winnerSide.value === null || winOnly.value) return null
   return winnerSide.value === 'b' ? props.tournament.maxScore : (props.match.loserScore ?? 0)
 })
 
@@ -58,6 +61,10 @@ function onClick() {
         >
           {{ aName }}
         </span>
+        <i
+          v-if="winOnly && winnerSide === 'a'"
+          class="pi pi-trophy text-primary-500 shrink-0"
+        />
         <span
           v-if="aScore !== null"
           class="font-mono tabular-nums text-lg shrink-0"
@@ -73,6 +80,10 @@ function onClick() {
         >
           {{ bName }}
         </span>
+        <i
+          v-if="winOnly && winnerSide === 'b'"
+          class="pi pi-trophy text-primary-500 shrink-0"
+        />
         <span
           v-if="bScore !== null"
           class="font-mono tabular-nums text-lg shrink-0"

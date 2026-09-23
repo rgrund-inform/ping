@@ -87,3 +87,31 @@ describe('shareSummaryText', () => {
     expect(shareSummaryText(t, players)).toContain('Bracket still in play.')
   })
 })
+
+describe('quick tournaments', () => {
+  /** Same fixture as a scored round-robin, but win-only: no loser scores. */
+  function quick(status: Tournament['status'] = 'running'): Tournament {
+    return {
+      ...rr(
+        [m('1', 'a', 'b', 'a'), m('2', 'c', 'd', 'b'), m('3', 'a', 'c', 'a'), m('4', 'b', 'd', null)],
+        status,
+      ),
+      scoring: 'wins',
+    }
+  }
+
+  test('the headline says Quick, not Round-robin', () => {
+    const text = shareSummaryText(quick(), players)
+    expect(text).toContain('Quick · 4 players · 3/4 matches')
+    expect(text).not.toContain('Round-robin')
+  })
+
+  test('the standings line still reports wins and losses', () => {
+    const text = shareSummaryText(quick(), players)
+    expect(text).toContain('Leading: 1. Alice 2–0 · 2. Dave 1–0 · 3. Bob 0–1')
+  })
+
+  test('a completed quick tournament still crowns a winner', () => {
+    expect(shareSummaryText(quick('completed'), players)).toContain('Final: 🏆 Alice 2–0')
+  })
+})

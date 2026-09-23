@@ -98,6 +98,8 @@ export function validateTournament(
     id: t.id,
     name: t.name,
     mode: t.mode,
+    // Unknown/absent scoring falls back to 'points', matching pre-quick-mode data.
+    scoring: t.scoring === 'wins' ? 'wins' : 'points',
     maxScore: t.maxScore,
     seeding: t.seeding === 'random' || t.seeding === 'win-rate' ? t.seeding : undefined,
     status: t.status,

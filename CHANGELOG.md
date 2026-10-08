@@ -1,3 +1,10 @@
+# [1.14.0](https://github.com/rgrund-inform/ping/compare/v1.13.0...v1.14.0) (2026-10-08)
+
+
+### Features
+
+* **worker:** rate limit space creation per client IP ([1f498c5](https://github.com/rgrund-inform/ping/commit/1f498c5011bd0d19fc677cd57549b07d240592fb))
+
 # [1.13.0](https://github.com/rgrund-inform/ping/compare/v1.12.0...v1.13.0) (2026-10-08)
 
 

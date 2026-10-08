@@ -8,6 +8,11 @@
     "bindings": [{ "name": "SYNC_SPACE", "class_name": "SyncSpace" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncSpace"] }],
+  // Space creation is unauthenticated, so cap it per client IP. Counted per
+  // Cloudflare location, eventually consistent — abuse protection, not accounting.
+  "ratelimits": [
+    { "name": "CREATE_SPACE_LIMITER", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }
+  ],
   "vars": {
     // Comma-separated browser origins allowed by CORS. Add the GitHub Pages origin
     // (e.g. "https://<user>.github.io", no path) before the PWA can sync in production.

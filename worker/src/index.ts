@@ -19,6 +19,7 @@ class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly headers: Record<string, string> = {},
   ) {
     super(message)
   }
@@ -33,7 +34,8 @@ export default {
       return withHeaders(response, cors)
     } catch (err) {
       if (err instanceof HttpError) {
-        return withHeaders(Response.json({ error: err.message }, { status: err.status }), cors)
+        const res = Response.json({ error: err.message }, { status: err.status, headers: err.headers })
+        return withHeaders(res, cors)
       }
       console.error(
         JSON.stringify({
@@ -63,6 +65,7 @@ async function route(request: Request, env: Env, url: URL, cors: Headers | null)
 
   if (pathname === '/spaces') {
     if (method !== 'POST') throw new HttpError(405, 'method not allowed')
+    await enforceCreateLimit(request, env)
     return createSpace(env)
   }
 
@@ -73,6 +76,20 @@ async function route(request: Request, env: Env, url: URL, cors: Headers | null)
   }
 
   throw new HttpError(404, 'not found')
+}
+
+/**
+ * Per-IP cap on space creation (see `ratelimits` in wrangler.jsonc). A 429
+ * carries `Retry-After` so the client can show a useful message.
+ */
+async function enforceCreateLimit(request: Request, env: Env): Promise<void> {
+  const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown'
+  const { success } = await env.CREATE_SPACE_LIMITER.limit({ key: ip })
+  if (!success) {
+    throw new HttpError(429, 'too many spaces created; try again in a minute', {
+      'Retry-After': '60',
+    })
+  }
 }
 
 async function createSpace(env: Env): Promise<Response> {

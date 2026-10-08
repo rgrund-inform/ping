@@ -114,3 +114,9 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Cloudflare Wrangler local state and dev secrets
+.wrangler/
+worker/.dev.vars
+.env.local
+worker/tsconfig.tsbuildinfo

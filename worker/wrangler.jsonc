@@ -1,0 +1,21 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Ping sync API: a thin router in front of one SQLite-backed Durable Object per sync space.
+  "name": "ping-sync",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-06",
+  "durable_objects": {
+    "bindings": [{ "name": "SYNC_SPACE", "class_name": "SyncSpace" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["SyncSpace"] }],
+  "vars": {
+    // Comma-separated browser origins allowed by CORS. Add the GitHub Pages origin
+    // (e.g. "https://<user>.github.io", no path) before the PWA can sync in production.
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://localhost:4173"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.1 }
+  }
+}

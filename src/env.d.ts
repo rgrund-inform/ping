@@ -9,3 +9,12 @@ declare module '*.vue' {
 
 /** Inlined at build time from package.json. Bumped by semantic-release in CI. */
 declare const __APP_VERSION__: string
+
+interface ImportMetaEnv {
+  /** Origin of the sync Worker. Unset or empty → sync UI is hidden. */
+  readonly VITE_SYNC_URL?: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}

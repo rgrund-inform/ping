@@ -33,6 +33,11 @@ const routes: RouteRecordRaw[] = [
     name: 'import',
     component: () => import('@/views/ImportView.vue'),
   },
+  {
+    path: '/join',
+    name: 'join',
+    component: () => import('@/views/JoinView.vue'),
+  },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 

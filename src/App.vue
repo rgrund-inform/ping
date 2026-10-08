@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Menubar from 'primevue/menubar'
 import Button from 'primevue/button'
@@ -12,6 +12,10 @@ import { exportFilename } from '@/lib/transfer'
 import { downloadJSON } from '@/utils/download'
 import { parseChangelog, releasesBetween, type Release } from '@/lib/changelog'
 import ChangelogDialog from '@/components/ChangelogDialog.vue'
+import SyncDialog from '@/components/SyncDialog.vue'
+import { syncedAgo, useSyncStore } from '@/stores/sync'
+import { SYNC_ENABLED } from '@/lib/sync/client'
+import { installSyncEngine } from '@/lib/sync/engine'
 import changelogRaw from '../CHANGELOG.md?raw'
 
 const router = useRouter()
@@ -21,6 +25,42 @@ const store = useTournamentsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const fileInput = ref<HTMLInputElement | null>(null)
+const sync = useSyncStore()
+
+// ---- sync ----
+installSyncEngine()
+const syncVisible = ref(false)
+
+// Ticks the "synced 2 min ago" tooltip.
+const now = ref(Date.now())
+const nowTimer = setInterval(() => (now.value = Date.now()), 30_000)
+onUnmounted(() => clearInterval(nowTimer))
+
+const syncButton = computed(() => {
+  if (sync.status === 'syncing') return { icon: 'pi pi-sync pi-spin', dot: false, tip: 'Syncing…' }
+  if (sync.status === 'error') {
+    return { icon: 'pi pi-exclamation-triangle', dot: false, tip: sync.error ?? 'Sync failed' }
+  }
+  if (!sync.space) return { icon: 'pi pi-cloud', dot: false, tip: 'Sync: off' }
+  if (sync.status === 'offline') {
+    return { icon: 'pi pi-wifi opacity-50', dot: false, tip: 'Offline — will sync when back online' }
+  }
+  return {
+    icon: 'pi pi-cloud',
+    dot: true,
+    tip: `Synced ${syncedAgo(sync.lastSyncAt, now.value)}`,
+  }
+})
+
+// The engine drops the space when the server rejects it; tell the user.
+watch(
+  () => sync.space,
+  (space, prev) => {
+    if (prev && !space && sync.error) {
+      toast.add({ severity: 'error', summary: 'Sync turned off', detail: sync.error, life: 8000 })
+    }
+  },
+)
 
 const items = computed(() => [
   {
@@ -72,13 +112,15 @@ async function onFile(e: Event) {
     toast.add({ severity: 'error', summary: 'Import failed', detail: String(err), life: 5000 })
     return
   }
+  const merging = !!sync.space
   confirm.require({
-    message:
-      'Importing will replace every player, tournament, and match currently on this device. Continue?',
-    header: 'Replace all local data?',
+    message: merging
+      ? 'Importing replaces the players, tournaments, and matches on this device with the file, then merges them into the sync space. Data already in the space is kept and comes back on the next sync. Continue?'
+      : 'Importing will replace every player, tournament, and match currently on this device. Continue?',
+    header: merging ? 'Import into sync space?' : 'Replace all local data?',
     icon: 'pi pi-exclamation-triangle',
     rejectLabel: 'Cancel',
-    acceptLabel: 'Replace',
+    acceptLabel: merging ? 'Import' : 'Replace',
     acceptClass: 'p-button-danger',
     accept: () => {
       try {
@@ -166,6 +208,25 @@ onMounted(() => {
           @click="install"
         />
         <Button
+          v-if="SYNC_ENABLED"
+          severity="secondary"
+          size="small"
+          text
+          rounded
+          class="relative"
+          aria-label="Sync"
+          v-tooltip.bottom="syncButton.tip"
+          @click="syncVisible = true"
+        >
+          <template #icon="{ class: iconClass }">
+            <span :class="[iconClass, syncButton.icon]" />
+            <span
+              v-if="syncButton.dot"
+              class="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary-400"
+            />
+          </template>
+        </Button>
+        <Button
           icon="pi pi-cloud-download"
           severity="secondary"
           size="small"
@@ -210,10 +271,13 @@ onMounted(() => {
   </main>
 
   <footer class="text-center text-xs opacity-60 py-3">
-    Ping · v{{ version }} · data stays on this device
+    Ping · v{{ version }} ·
+    <template v-if="SYNC_ENABLED && sync.space">synced · space {{ sync.space.id.slice(0, 6) }}…</template>
+    <template v-else>data stays on this device</template>
   </footer>
 
   <Toast position="bottom-center" />
   <ConfirmDialog />
   <ChangelogDialog v-model:visible="changelogVisible" :releases="newReleases" />
+  <SyncDialog v-if="SYNC_ENABLED" v-model:visible="syncVisible" />
 </template>

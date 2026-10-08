@@ -1,3 +1,12 @@
+# [1.13.0](https://github.com/rgrund-inform/ping/compare/v1.12.0...v1.13.0) (2026-10-08)
+
+
+### Features
+
+* add updatedAt, tombstones and the sync merge model ([892f21c](https://github.com/rgrund-inform/ping/commit/892f21c9ba9dbe76216ee9b2599331854dabd373))
+* optional multi-device sync via a shared space ([8be2304](https://github.com/rgrund-inform/ping/commit/8be2304656dffdb47d3590155f1b2f14fd0a147d))
+* **worker:** add Cloudflare sync Worker with one Durable Object per space ([9e7fd55](https://github.com/rgrund-inform/ping/commit/9e7fd556df30d1d664ca461794ad8c9216bdc77a))
+
 # [1.12.0](https://github.com/rgrund-inform/ping/compare/v1.11.0...v1.12.0) (2026-09-23)
 
 

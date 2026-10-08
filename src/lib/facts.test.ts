@@ -8,7 +8,7 @@ const YESTERDAY = new Date('2026-05-06T10:00:00Z').getTime()
 const LAST_MONTH = new Date('2026-04-01T10:00:00Z').getTime()
 
 function p(id: string, name: string): Player {
-  return { id, name, createdAt: 0 }
+  return { id, name, createdAt: 0, updatedAt: 0 }
 }
 
 function makeTournament(opts: {
@@ -26,6 +26,7 @@ function makeTournament(opts: {
     maxScore: max,
     status: 'completed',
     createdAt: 0,
+    updatedAt: 0,
     players: [...new Set(opts.matches.flatMap((m) => [m.a, m.b]))],
     matches: opts.matches.map((m, i) => ({
       id: `m${opts.id}-${i}`,

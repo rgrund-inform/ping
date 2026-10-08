@@ -13,7 +13,7 @@ function fullRoundRobin(): {
   const players: Record<string, Player> = {}
   const ids = NAMES.map((name, i) => {
     const id = `orig-${i}`
-    players[id] = { id, name, createdAt: 1700000000000 + i }
+    players[id] = { id, name, createdAt: 1700000000000 + i, updatedAt: 1700000000000 + i }
     return id
   })
   const matches: Match[] = []
@@ -40,6 +40,7 @@ function fullRoundRobin(): {
     maxScore: 11,
     status: 'running',
     createdAt: 1700000000000,
+    updatedAt: 1700000000000,
     startedAt: 1700000050000,
     players: ids,
     matches,
@@ -51,9 +52,9 @@ function fullRoundRobin(): {
 /** 3-player knockout: seed 1 gets a bye, completed bracket. */
 function knockout(): { tournament: Tournament; players: Record<string, Player> } {
   const players: Record<string, Player> = {
-    k1: { id: 'k1', name: 'Alice', createdAt: 1700000000000 },
-    k2: { id: 'k2', name: 'Bob', createdAt: 1700000000001 },
-    k3: { id: 'k3', name: 'Carol', createdAt: 1700000000002 },
+    k1: { id: 'k1', name: 'Alice', createdAt: 1700000000000, updatedAt: 1700000000000 },
+    k2: { id: 'k2', name: 'Bob', createdAt: 1700000000001, updatedAt: 1700000000001 },
+    k3: { id: 'k3', name: 'Carol', createdAt: 1700000000002, updatedAt: 1700000000002 },
   }
   const tournament: Tournament = {
     id: 'orig-k',
@@ -63,6 +64,7 @@ function knockout(): { tournament: Tournament; players: Record<string, Player> }
     seeding: 'win-rate',
     status: 'completed',
     createdAt: 1700000000000,
+    updatedAt: 1700000000000,
     startedAt: 1700000010000,
     completedAt: 1700000900000,
     players: ['k1', 'k2', 'k3'],
@@ -100,6 +102,8 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
     expect(t.maxScore).toBe(11)
     expect(t.status).toBe('running')
     expect(t.createdAt).toBe(1700000000000)
+    // updatedAt is not on the wire; createdAt stands in for it.
+    expect(t.updatedAt).toBe(1700000000000)
     expect(t.startedAt).toBe(1700000050000)
     expect(t.bracketLocked).toBe(false)
 
@@ -158,8 +162,8 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
 
   test('optional fields stay absent after decode', async () => {
     const players: Record<string, Player> = {
-      s1: { id: 's1', name: 'Alice', createdAt: 1 },
-      s2: { id: 's2', name: 'Bob', createdAt: 2 },
+      s1: { id: 's1', name: 'Alice', createdAt: 1, updatedAt: 1 },
+      s2: { id: 's2', name: 'Bob', createdAt: 2, updatedAt: 2 },
     }
     const tournament: Tournament = {
       id: 's-t',
@@ -168,6 +172,7 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
       maxScore: 7,
       status: 'setup',
       createdAt: 1700000000000,
+      updatedAt: 1700000000000,
       players: ['s1', 's2'],
       matches: [
         { id: 'sm1', round: 1, a: 's1', b: 's2', winnerSide: null, loserScore: null },
@@ -354,9 +359,9 @@ describe('encodeTournamentShare / decodeTournamentShare', () => {
 /** 3-player quick tournament: winners only, no scores anywhere. */
 function quick(): { tournament: Tournament; players: Record<string, Player> } {
   const players: Record<string, Player> = {
-    q1: { id: 'q1', name: 'Alice', createdAt: 1700000000000 },
-    q2: { id: 'q2', name: 'Bob', createdAt: 1700000000001 },
-    q3: { id: 'q3', name: 'Carol', createdAt: 1700000000002 },
+    q1: { id: 'q1', name: 'Alice', createdAt: 1700000000000, updatedAt: 1700000000000 },
+    q2: { id: 'q2', name: 'Bob', createdAt: 1700000000001, updatedAt: 1700000000001 },
+    q3: { id: 'q3', name: 'Carol', createdAt: 1700000000002, updatedAt: 1700000000002 },
   }
   const tournament: Tournament = {
     id: 'orig-q',
@@ -366,6 +371,7 @@ function quick(): { tournament: Tournament; players: Record<string, Player> } {
     maxScore: 7,
     status: 'running',
     createdAt: 1700000000000,
+    updatedAt: 1700000000000,
     startedAt: 1700000010000,
     players: ['q1', 'q2', 'q3'],
     matches: [

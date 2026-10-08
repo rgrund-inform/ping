@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import type {
   Match,
+  PingStore,
   Player,
   PlayerId,
   ScoringMode,
@@ -9,6 +10,7 @@ import type {
   TournamentId,
   TournamentMode,
 } from '@/types'
+import { STORE_VERSION } from '@/types'
 import { uid } from '@/lib/id'
 import {
   buildRoundRobinMatches,
@@ -20,18 +22,16 @@ import { buildSeededBracket } from '@/lib/bracket'
 import { applyResult, editResult, isComplete, nextMatches, standings } from '@/lib/scoring'
 import { historicalWinRate, suggestPlayers } from '@/lib/suggestions'
 import { buildExport, parseExport, remapTournament } from '@/lib/transfer'
-
-interface State {
-  version: 1
-  players: Record<PlayerId, Player>
-  tournaments: Tournament[]
-}
+import { migrateStore } from '@/lib/migrate'
+import { applyRows } from '@/lib/sync/merge'
+import type { SyncRow } from '@/lib/sync/protocol'
 
 export const useTournamentsStore = defineStore('ping', {
-  state: (): State => ({
-    version: 1,
+  state: (): PingStore => ({
+    version: STORE_VERSION,
     players: {},
     tournaments: [],
+    tombstones: {},
   }),
 
   getters: {
@@ -60,7 +60,8 @@ export const useTournamentsStore = defineStore('ping', {
         (p) => p.name.toLowerCase() === trimmed.toLowerCase(),
       )
       if (existing) return existing
-      const player: Player = { id: uid(), name: trimmed, createdAt: Date.now() }
+      const now = Date.now()
+      const player: Player = { id: uid(), name: trimmed, createdAt: now, updatedAt: now }
       this.players[player.id] = player
       return player
     },
@@ -71,12 +72,14 @@ export const useTournamentsStore = defineStore('ping', {
       const trimmed = name.trim()
       if (!trimmed) return
       p.name = trimmed
+      p.updatedAt = Date.now()
     },
 
     deletePlayer(id: PlayerId): void {
       const inUse = this.tournaments.some((t) => t.players.includes(id))
       if (inUse) throw new Error('player participated in a tournament; cannot delete')
       delete this.players[id]
+      this.tombstones[id] = { kind: 'player', id, deletedAt: Date.now() }
     },
 
     // ---- tournaments ----
@@ -89,6 +92,7 @@ export const useTournamentsStore = defineStore('ping', {
       seeding?: Seeding
       players: PlayerId[]
     }): Tournament {
+      const now = Date.now()
       const t: Tournament = {
         id: uid(),
         name: input.name.trim() || 'Tournament',
@@ -97,7 +101,8 @@ export const useTournamentsStore = defineStore('ping', {
         maxScore: input.maxScore,
         seeding: input.mode === 'knockout' ? input.seeding ?? 'win-rate' : undefined,
         status: 'setup',
-        createdAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
         players: [...input.players],
         matches: [],
         bracketLocked: false,
@@ -112,6 +117,7 @@ export const useTournamentsStore = defineStore('ping', {
       // Replace the roster with the given order; only allowed for knockout.
       if (t.mode !== 'knockout') return
       t.players = [...order]
+      t.updatedAt = Date.now()
     },
 
     startTournament(id: TournamentId): void {
@@ -133,6 +139,7 @@ export const useTournamentsStore = defineStore('ping', {
       }
       t.status = 'running'
       t.startedAt = Date.now()
+      t.updatedAt = t.startedAt
     },
 
     addPlayerToTournament(id: TournamentId, pid: PlayerId): void {
@@ -146,6 +153,7 @@ export const useTournamentsStore = defineStore('ping', {
       if (t.status === 'running' && t.mode === 'round-robin') {
         t.matches = regenerateRoundRobin(t.matches, t.players)
       }
+      t.updatedAt = Date.now()
     },
 
     removePlayerFromTournament(id: TournamentId, pid: PlayerId): void {
@@ -158,6 +166,7 @@ export const useTournamentsStore = defineStore('ping', {
       if (t.status === 'running' && t.mode === 'round-robin') {
         t.matches = regenerateRoundRobin(t.matches, t.players)
       }
+      t.updatedAt = Date.now()
     },
 
     /** `loserScore` is null for win-only (quick) tournaments. */
@@ -189,6 +198,7 @@ export const useTournamentsStore = defineStore('ping', {
       const t = this.tournament(id)
       if (!t || t.status !== 'running' || t.mode !== 'round-robin') return
       t.matches = shuffleUpcomingMatches(t.matches)
+      t.updatedAt = Date.now()
     },
 
     /**
@@ -199,6 +209,7 @@ export const useTournamentsStore = defineStore('ping', {
       const t = this.tournament(id)
       if (!t || t.status !== 'running' || t.mode !== 'round-robin') return
       t.matches = smartShuffleUpcomingMatches(t.matches)
+      t.updatedAt = Date.now()
     },
 
     // ---- views ----
@@ -219,6 +230,7 @@ export const useTournamentsStore = defineStore('ping', {
 
     deleteTournament(id: TournamentId): void {
       this.tournaments = this.tournaments.filter((t) => t.id !== id)
+      this.tombstones[id] = { kind: 'tournament', id, deletedAt: Date.now() }
     },
 
     // ---- import / export ----
@@ -227,6 +239,7 @@ export const useTournamentsStore = defineStore('ping', {
         version: this.version,
         players: this.players,
         tournaments: this.tournaments,
+        tombstones: this.tombstones,
       })
     },
 
@@ -236,6 +249,7 @@ export const useTournamentsStore = defineStore('ping', {
       this.version = result.data.version
       this.players = result.data.players
       this.tournaments = result.data.tournaments
+      this.tombstones = result.data.tombstones
     },
 
     /**
@@ -250,6 +264,7 @@ export const useTournamentsStore = defineStore('ping', {
         { action: 'match'; localId: PlayerId } | { action: 'create' }
       >,
     ): TournamentId {
+      const now = Date.now()
       const playerIdMap: Record<PlayerId, PlayerId> = {}
       for (const [importedId, imported] of Object.entries(data.players)) {
         const res = resolutions[importedId]
@@ -264,20 +279,47 @@ export const useTournamentsStore = defineStore('ping', {
             id: uid(),
             name: imported.name.trim() || imported.name,
             createdAt: imported.createdAt,
+            updatedAt: now,
           }
           this.players[player.id] = player
           playerIdMap[importedId] = player.id
         }
       }
       const newId = uid()
-      const t = remapTournament(data.tournament, playerIdMap, newId)
+      const t = { ...remapTournament(data.tournament, playerIdMap, newId), updatedAt: now }
       this.tournaments.push(t)
       return newId
+    },
+
+    // ---- sync ----
+    /**
+     * Merge rows pulled from the sync space into local state. The sync store
+     * excludes this action (by name) from dirty-marking so pulls never echo.
+     */
+    applyRemote(rows: SyncRow[]): void {
+      const next = applyRows(
+        {
+          version: STORE_VERSION,
+          players: this.players,
+          tournaments: this.tournaments,
+          tombstones: this.tombstones,
+        },
+        rows,
+      )
+      this.players = next.players
+      this.tournaments = next.tournaments
+      this.tombstones = next.tombstones
     },
   },
 
   persist: {
+    // Storage slot name, not the shape version: the blob is migrated in place.
     key: 'ping.v1',
     storage: localStorage,
+    serializer: {
+      serialize: JSON.stringify,
+      // Upgrade older blobs before Pinia patches them into state.
+      deserialize: (s) => migrateStore(JSON.parse(s)) as PingStore,
+    },
   },
 })

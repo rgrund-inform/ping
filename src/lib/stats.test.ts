@@ -3,7 +3,7 @@ import type { Player, PlayerId, Tournament } from '../types'
 import { currentStreak, globalPlayerStats, playerHeadToHead, recentResults } from './stats'
 
 function p(id: string, name: string): Player {
-  return { id, name, createdAt: 0 }
+  return { id, name, createdAt: 0, updatedAt: 0 }
 }
 
 function tournament(opts: {
@@ -21,6 +21,7 @@ function tournament(opts: {
     maxScore: opts.maxScore ?? 11,
     status: 'completed',
     createdAt: 0,
+    updatedAt: 0,
     startedAt: 0,
     players: opts.players,
     matches: opts.matches.map((m, i) => ({

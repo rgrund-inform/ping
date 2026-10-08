@@ -142,7 +142,8 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
   const players: Record<PlayerId, Player> = {}
   const roster: PlayerId[] = parsed.p.map((name, i) => {
     const id = `p${i}`
-    players[id] = { id, name, createdAt: parsed.c }
+    // The share payload carries no per-player stamps; createdAt stands in.
+    players[id] = { id, name, createdAt: parsed.c, updatedAt: parsed.c }
     return id
   })
   const byIndex = (idx: number): PlayerId | null => (idx === -1 ? null : `p${idx}`)
@@ -186,6 +187,8 @@ export async function decodeTournamentShare(payload: string): Promise<ShareDecod
     createdAt: parsed.c,
     startedAt: parsed.st,
     completedAt: parsed.co,
+    // Not on the wire (keeps links short); the importer re-stamps it anyway.
+    updatedAt: parsed.c,
     players: roster,
     matches,
     bracketLocked: parsed.l === 1,

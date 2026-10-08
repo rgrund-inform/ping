@@ -1,4 +1,15 @@
-import type { Match, Player, PingStore, PlayerId, Tournament, TournamentMode, TournamentStatus } from '../types'
+import type {
+  Match,
+  Player,
+  PingStore,
+  PlayerId,
+  Tombstone,
+  Tournament,
+  TournamentMode,
+  TournamentStatus,
+} from '../types'
+import { STORE_VERSION } from '../types'
+import { migrateStore } from './migrate'
 
 export interface ExportFile {
   /** Discriminator so we don't accidentally try to import unrelated JSON. */
@@ -12,9 +23,10 @@ export function buildExport(store: PingStore): string {
     app: 'ping',
     exportedAt: Date.now(),
     store: {
-      version: store.version,
+      version: STORE_VERSION,
       players: store.players,
       tournaments: store.tournaments,
+      tombstones: store.tombstones ?? {},
     },
   }
   return JSON.stringify(file, null, 2)
@@ -34,10 +46,13 @@ export function parseExport(raw: string): ParseResult {
   if (!isObject(parsed)) return { ok: false, error: 'File is not a Ping export.' }
 
   // Accept either the wrapped ExportFile or a bare PingStore for forgiveness.
-  const candidate = parsed.app === 'ping' && isObject(parsed.store) ? parsed.store : parsed
+  // Older (v1) exports are upgraded first, so they import like current ones.
+  const candidate = migrateStore(
+    parsed.app === 'ping' && isObject(parsed.store) ? parsed.store : parsed,
+  )
   if (!isObject(candidate)) return { ok: false, error: 'File is not a Ping export.' }
 
-  if (candidate.version !== 1) {
+  if (candidate.version !== STORE_VERSION) {
     return { ok: false, error: `Unsupported export version (${String(candidate.version)}).` }
   }
   if (!isObject(candidate.players)) return { ok: false, error: 'Missing players map.' }
@@ -46,7 +61,7 @@ export function parseExport(raw: string): ParseResult {
   const players: Record<string, Player> = {}
   for (const [id, p] of Object.entries(candidate.players)) {
     if (!isPlayer(p) || p.id !== id) return { ok: false, error: `Invalid player entry: ${id}.` }
-    players[id] = { id: p.id, name: p.name, createdAt: p.createdAt }
+    players[id] = copyPlayer(p)
   }
 
   const knownPlayerIds = new Set(Object.keys(players))
@@ -57,7 +72,16 @@ export function parseExport(raw: string): ParseResult {
     tournaments.push(result.value)
   }
 
-  return { ok: true, data: { version: 1, players, tournaments } }
+  if (!isObject(candidate.tombstones)) return { ok: false, error: 'Invalid tombstones map.' }
+  const tombstones: Record<string, Tombstone> = {}
+  for (const [id, tomb] of Object.entries(candidate.tombstones)) {
+    // Loose: a malformed tombstone only loses its deletion marker, not the import.
+    if (isTombstone(tomb) && tomb.id === id) {
+      tombstones[id] = { kind: tomb.kind, id, deletedAt: tomb.deletedAt }
+    }
+  }
+
+  return { ok: true, data: { version: STORE_VERSION, players, tournaments, tombstones } }
 }
 
 export function validateTournament(
@@ -71,6 +95,7 @@ export function validateTournament(
   if (typeof t.maxScore !== 'number') return { ok: false, error: `Tournament ${t.id} missing maxScore.` }
   if (!isStatus(t.status)) return { ok: false, error: `Tournament ${t.id} has invalid status.` }
   if (typeof t.createdAt !== 'number') return { ok: false, error: `Tournament ${t.id} missing createdAt.` }
+  if (typeof t.updatedAt !== 'number') return { ok: false, error: `Tournament ${t.id} missing updatedAt.` }
   if (!Array.isArray(t.players) || !t.players.every((p) => typeof p === 'string')) {
     return { ok: false, error: `Tournament ${t.id} has invalid players list.` }
   }
@@ -106,6 +131,7 @@ export function validateTournament(
     createdAt: t.createdAt,
     startedAt: typeof t.startedAt === 'number' ? t.startedAt : undefined,
     completedAt: typeof t.completedAt === 'number' ? t.completedAt : undefined,
+    updatedAt: t.updatedAt,
     players: [...t.players],
     matches,
     bracketLocked: t.bracketLocked,
@@ -122,7 +148,21 @@ function isPlayer(v: unknown): v is Player {
     isObject(v) &&
     typeof v.id === 'string' &&
     typeof v.name === 'string' &&
-    typeof v.createdAt === 'number'
+    typeof v.createdAt === 'number' &&
+    typeof v.updatedAt === 'number'
+  )
+}
+
+function copyPlayer(p: Player): Player {
+  return { id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt }
+}
+
+function isTombstone(v: unknown): v is Tombstone {
+  return (
+    isObject(v) &&
+    (v.kind === 'player' || v.kind === 'tournament') &&
+    typeof v.id === 'string' &&
+    typeof v.deletedAt === 'number'
   )
 }
 
@@ -209,13 +249,21 @@ export function parseTournamentExport(raw: string): TournamentParseResult {
   }
   if (!isObject(parsed.players)) return { ok: false, error: 'Missing players map.' }
 
+  // Files written before sync lack `updatedAt`; derive it the same way the
+  // store migration does (existing values are kept).
+  const migrated = migrateStore({
+    version: 1,
+    players: parsed.players,
+    tournaments: [parsed.tournament],
+  }) as { players: Record<string, unknown>; tournaments: unknown[] }
+
   const players: Record<PlayerId, Player> = {}
-  for (const [id, p] of Object.entries(parsed.players)) {
+  for (const [id, p] of Object.entries(migrated.players)) {
     if (!isPlayer(p) || p.id !== id) return { ok: false, error: `Invalid player entry: ${id}.` }
-    players[id] = { id: p.id, name: p.name, createdAt: p.createdAt }
+    players[id] = copyPlayer(p)
   }
 
-  const result = validateTournament(parsed.tournament, new Set(Object.keys(players)))
+  const result = validateTournament(migrated.tournaments[0], new Set(Object.keys(players)))
   if (!result.ok) return { ok: false, error: result.error }
 
   return { ok: true, data: { tournament: result.value, players } }

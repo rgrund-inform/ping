@@ -3,10 +3,10 @@ import type { Match, Player, Tournament } from '../types'
 import { shareSummaryText } from './shareText'
 
 const players: Record<string, Player> = {
-  a: { id: 'a', name: 'Alice', createdAt: 1 },
-  b: { id: 'b', name: 'Bob', createdAt: 2 },
-  c: { id: 'c', name: 'Carol', createdAt: 3 },
-  d: { id: 'd', name: 'Dave', createdAt: 4 },
+  a: { id: 'a', name: 'Alice', createdAt: 1, updatedAt: 1 },
+  b: { id: 'b', name: 'Bob', createdAt: 2, updatedAt: 2 },
+  c: { id: 'c', name: 'Carol', createdAt: 3, updatedAt: 3 },
+  d: { id: 'd', name: 'Dave', createdAt: 4, updatedAt: 4 },
 }
 
 function rr(matches: Match[], status: Tournament['status']): Tournament {
@@ -17,6 +17,7 @@ function rr(matches: Match[], status: Tournament['status']): Tournament {
     maxScore: 11,
     status,
     createdAt: 0,
+    updatedAt: 0,
     players: ['a', 'b', 'c', 'd'],
     matches,
     bracketLocked: false,

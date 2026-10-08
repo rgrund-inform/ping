@@ -12,10 +12,10 @@ import {
 
 function sampleStore(): PingStore {
   return {
-    version: 1,
+    version: 2,
     players: {
-      p1: { id: 'p1', name: 'Alice', createdAt: 1700000000000 },
-      p2: { id: 'p2', name: 'Bob', createdAt: 1700000000001 },
+      p1: { id: 'p1', name: 'Alice', createdAt: 1700000000000, updatedAt: 1700000000000 },
+      p2: { id: 'p2', name: 'Bob', createdAt: 1700000000001, updatedAt: 1700000000001 },
     },
     tournaments: [
       {
@@ -26,6 +26,7 @@ function sampleStore(): PingStore {
         status: 'running',
         createdAt: 1700000000000,
         startedAt: 1700000000100,
+        updatedAt: 1700000000100,
         players: ['p1', 'p2'],
         matches: [
           {
@@ -41,6 +42,7 @@ function sampleStore(): PingStore {
         bracketLocked: false,
       },
     ],
+    tombstones: {},
   }
 }
 
@@ -114,6 +116,52 @@ describe('buildExport / parseExport', () => {
     const result = parseExport(raw)
     expect(result.ok).toBe(true)
   })
+
+  test('writes version 2 including tombstones', () => {
+    const store = sampleStore()
+    store.tombstones.gone = { kind: 'player', id: 'gone', deletedAt: 1700000000500 }
+    const file = JSON.parse(buildExport(store))
+    expect(file.store.version).toBe(2)
+    const result = parseExport(JSON.stringify(file))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.tombstones).toEqual({
+      gone: { kind: 'player', id: 'gone', deletedAt: 1700000000500 },
+    })
+  })
+
+  test('drops malformed tombstones but keeps the import', () => {
+    const store = sampleStore() as unknown as { tombstones: Record<string, unknown> }
+    store.tombstones.bad = { kind: 'match', id: 'bad', deletedAt: 1 }
+    const result = parseExport(JSON.stringify({ app: 'ping', store }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.tombstones).toEqual({})
+  })
+
+  test('still imports a version 1 export, deriving updatedAt', () => {
+    const v1 = JSON.parse(JSON.stringify(sampleStore()))
+    v1.version = 1
+    delete v1.tombstones
+    for (const p of Object.values(v1.players) as Record<string, unknown>[]) delete p.updatedAt
+    delete v1.tournaments[0].updatedAt
+    const result = parseExport(JSON.stringify({ app: 'ping', exportedAt: 0, store: v1 }))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.version).toBe(2)
+    expect(result.data.tombstones).toEqual({})
+    expect(result.data.players.p2.updatedAt).toBe(1700000000001)
+    // Running tournament: stamped from startedAt.
+    expect(result.data.tournaments[0].updatedAt).toBe(1700000000100)
+  })
+
+  test('rejects a version 2 store missing updatedAt', () => {
+    const store = sampleStore() as unknown as { players: Record<string, Record<string, unknown>> }
+    delete store.players.p1.updatedAt
+    // v2 migration fills it from createdAt, so strip createdAt too to force the check.
+    delete store.players.p1.createdAt
+    expect(parseExport(JSON.stringify(store)).ok).toBe(false)
+  })
 })
 
 describe('exportFilename', () => {
@@ -140,7 +188,7 @@ describe('buildTournamentExport / parseTournamentExport', () => {
 
   test('only bundles players referenced by the tournament', () => {
     const { tournament, players } = sampleTournament()
-    players.p3 = { id: 'p3', name: 'Carol', createdAt: 1700000000002 }
+    players.p3 = { id: 'p3', name: 'Carol', createdAt: 1700000000002, updatedAt: 1700000000002 }
     const raw = buildTournamentExport(tournament, players)
     const result = parseTournamentExport(raw)
     expect(result.ok).toBe(true)
@@ -157,6 +205,18 @@ describe('buildTournamentExport / parseTournamentExport', () => {
     expect(parseTournamentExport('nope {{{').ok).toBe(false)
   })
 
+  test('imports a pre-sync tournament file, deriving updatedAt', () => {
+    const { tournament, players } = sampleTournament()
+    const file = JSON.parse(buildTournamentExport(tournament, players))
+    delete file.tournament.updatedAt
+    for (const p of Object.values(file.players) as Record<string, unknown>[]) delete p.updatedAt
+    const result = parseTournamentExport(JSON.stringify(file))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.data.tournament.updatedAt).toBe(1700000000100)
+    expect(result.data.players.p1.updatedAt).toBe(1700000000000)
+  })
+
   test('rejects a match referencing a player not in the bundle', () => {
     const { tournament, players } = sampleTournament()
     tournament.matches[0].a = 'ghost'
@@ -170,11 +230,11 @@ describe('buildTournamentExport / parseTournamentExport', () => {
 
 describe('planPlayerImport', () => {
   const imported: Record<string, Player> = {
-    i1: { id: 'i1', name: 'Alice', createdAt: 1 },
-    i2: { id: 'i2', name: 'Zelda', createdAt: 2 },
+    i1: { id: 'i1', name: 'Alice', createdAt: 1, updatedAt: 1 },
+    i2: { id: 'i2', name: 'Zelda', createdAt: 2, updatedAt: 2 },
   }
   const local: Record<string, Player> = {
-    L1: { id: 'L1', name: 'alice', createdAt: 1 },
+    L1: { id: 'L1', name: 'alice', createdAt: 1, updatedAt: 1 },
   }
 
   test('matches by name case-insensitively, null otherwise', () => {
@@ -206,6 +266,7 @@ describe('remapTournament', () => {
       maxScore: 7,
       status: 'running',
       createdAt: 1,
+      updatedAt: 1,
       players: ['p1'],
       matches: [
         { id: 'm', round: 1, slot: 0, a: 'p1', b: null, winnerSide: null, loserScore: null },
@@ -221,10 +282,10 @@ describe('remapTournament', () => {
 describe('scoring mode through export/import', () => {
   function quickStore(): PingStore {
     return {
-      version: 1,
+      version: 2,
       players: {
-        p1: { id: 'p1', name: 'Alice', createdAt: 1700000000000 },
-        p2: { id: 'p2', name: 'Bob', createdAt: 1700000000001 },
+        p1: { id: 'p1', name: 'Alice', createdAt: 1700000000000, updatedAt: 1700000000000 },
+        p2: { id: 'p2', name: 'Bob', createdAt: 1700000000001, updatedAt: 1700000000001 },
       },
       tournaments: [
         {
@@ -235,6 +296,7 @@ describe('scoring mode through export/import', () => {
           maxScore: 7,
           status: 'running',
           createdAt: 1700000000000,
+          updatedAt: 1700000000000,
           players: ['p1', 'p2'],
           matches: [
             {
@@ -250,6 +312,7 @@ describe('scoring mode through export/import', () => {
           bracketLocked: false,
         },
       ],
+      tombstones: {},
     }
   }
 

@@ -12,6 +12,8 @@ export interface Player {
   id: PlayerId
   name: string
   createdAt: number
+  /** Last metadata change (name). Sync merges players last-writer-wins on this. */
+  updatedAt: number
 }
 
 export interface Match {
@@ -49,15 +51,32 @@ export interface Tournament {
   createdAt: number
   startedAt?: number
   completedAt?: number
+  /**
+   * Last change to metadata or schedule (name, roster, start, shuffle).
+   * NOT bumped by recording a result — matches carry their own `playedAt`,
+   * which is the per-match last-writer-wins stamp for sync.
+   */
+  updatedAt: number
   players: PlayerId[]
   matches: Match[]
   bracketLocked: boolean
 }
 
+/** Marker for a deleted player or tournament so sync never resurrects it. */
+export interface Tombstone {
+  kind: 'player' | 'tournament'
+  id: string
+  deletedAt: number
+}
+
+export const STORE_VERSION = 2
+
 export interface PingStore {
-  version: 1
+  version: typeof STORE_VERSION
   players: Record<PlayerId, Player>
   tournaments: Tournament[]
+  /** Keyed by entity id (UUIDs are unique across kinds). */
+  tombstones: Record<string, Tombstone>
 }
 
 export interface Fact {

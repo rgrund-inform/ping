@@ -156,16 +156,19 @@ export function globalPlayerStats(
   })
 }
 
+/** `since` limits the matches to those played at or after that timestamp. */
 export function playerHeadToHead(
   pid: PlayerId,
   players: Record<PlayerId, Player>,
   tournaments: Tournament[],
+  since = 0,
 ): HeadToHead[] {
   const map = new Map<PlayerId, HeadToHead>()
   // Running totals of the normalised scores, averaged once at the end.
   const sums = new Map<PlayerId, { for: number; against: number }>()
   for (const m of realMatches(tournaments)) {
     if (m.a !== pid && m.b !== pid) continue
+    if (m.playedAt < since) continue
     const opponent = m.a === pid ? m.b : m.a
     const winnerId = m.winnerSide === 'a' ? m.a : m.b
     const isWin = winnerId === pid
@@ -213,6 +216,62 @@ export function playerHeadToHead(
   return [...map.values()].sort(
     (a, b) => b.matches - a.matches || b.winRate - a.winRate,
   )
+}
+
+export interface Rival extends HeadToHead {
+  /** 0 = dead even, 1 = completely one-sided. */
+  gap: number
+}
+
+export interface Rivals {
+  allTime: Rival | null
+  /** Only matches from the last `RIVAL_WINDOW_DAYS` days. */
+  current: Rival | null
+}
+
+export const RIVAL_WINDOW_DAYS = 30
+const RIVAL_MIN_MATCHES_ALL_TIME = 3
+const RIVAL_MIN_MATCHES_CURRENT = 2
+
+/**
+ * How one-sided a head-to-head is: the mean of the W-L imbalance and the
+ * normalised score margin (W-L only when no match has a scoreline).
+ */
+export function rivalryGap(h: HeadToHead): number {
+  const balance = Math.abs(h.wins - h.losses) / h.matches
+  if (h.avgFor === null || h.avgAgainst === null) return balance
+  const margin = Math.abs(h.avgFor - h.avgAgainst) / NORMALISED_MAX_SCORE
+  return (balance + margin) / 2
+}
+
+/** The closest opponent with enough matches; more matches break ties. */
+function closest(rows: HeadToHead[], minMatches: number): Rival | null {
+  const ranked = rows
+    .filter((h) => h.matches >= minMatches)
+    .map((h) => ({ ...h, gap: rivalryGap(h) }))
+    .sort(
+      (a, b) =>
+        a.gap - b.gap ||
+        b.matches - a.matches ||
+        a.opponentName.localeCompare(b.opponentName),
+    )
+  return ranked[0] ?? null
+}
+
+export function playerRivals(
+  pid: PlayerId,
+  players: Record<PlayerId, Player>,
+  tournaments: Tournament[],
+  now: number = Date.now(),
+): Rivals {
+  const since = now - RIVAL_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  return {
+    allTime: closest(playerHeadToHead(pid, players, tournaments), RIVAL_MIN_MATCHES_ALL_TIME),
+    current: closest(
+      playerHeadToHead(pid, players, tournaments, since),
+      RIVAL_MIN_MATCHES_CURRENT,
+    ),
+  }
 }
 
 export function recentResults(

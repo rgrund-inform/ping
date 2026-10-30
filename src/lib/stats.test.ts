@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import type { Player, PlayerId, Tournament } from '../types'
-import { currentStreak, globalPlayerStats, playerHeadToHead, recentResults } from './stats'
+import {
+  currentStreak,
+  globalPlayerStats,
+  playerHeadToHead,
+  playerRivals,
+  recentResults,
+  rivalryGap,
+} from './stats'
 
 function p(id: string, name: string): Player {
   return { id, name, createdAt: 0, updatedAt: 0 }
@@ -232,5 +239,87 @@ describe('quick-mode (win-only) matches in global stats', () => {
     expect(recent[0].win).toBe(true)
     expect(recent[0].selfScore).toBeNull()
     expect(recent[0].opponentScore).toBeNull()
+  })
+})
+
+describe('playerRivals', () => {
+  const day = 24 * 60 * 60 * 1000
+  const now = 100 * day
+  const four = { ...players, w: p('w', 'W') }
+
+  test('picks the closest opponent, not the most played', () => {
+    const t = tournament({
+      id: 'rv',
+      players: ['x', 'y', 'z'],
+      matches: [
+        // x beats y 4 times: lots of matches, one-sided.
+        { a: 'x', b: 'y', winner: 'x', loserScore: 2, at: now - 50 * day },
+        { a: 'x', b: 'y', winner: 'x', loserScore: 3, at: now - 50 * day },
+        { a: 'x', b: 'y', winner: 'x', loserScore: 1, at: now - 50 * day },
+        { a: 'x', b: 'y', winner: 'x', loserScore: 4, at: now - 50 * day },
+        // x and z split 3 close matches.
+        { a: 'x', b: 'z', winner: 'x', loserScore: 9, at: now - 50 * day },
+        { a: 'x', b: 'z', winner: 'z', loserScore: 9, at: now - 50 * day },
+        { a: 'x', b: 'z', winner: 'z', loserScore: 10, at: now - 50 * day },
+      ],
+    })
+    const r = playerRivals('x', players, [t], now)
+    expect(r.allTime?.opponentId).toBe('z')
+  })
+
+  test('needs 3 matches all-time and 2 in the last 30 days', () => {
+    const t = tournament({
+      id: 'rv',
+      players: ['x', 'y', 'z'],
+      matches: [
+        { a: 'x', b: 'y', winner: 'x', loserScore: 10, at: now - 40 * day },
+        { a: 'x', b: 'y', winner: 'y', loserScore: 10, at: now - 1 * day },
+        { a: 'x', b: 'z', winner: 'x', loserScore: 5, at: now - 2 * day },
+      ],
+    })
+    const r = playerRivals('x', players, [t], now)
+    expect(r.allTime).toBeNull()
+    expect(r.current).toBeNull()
+  })
+
+  test('current rival only looks at the last 30 days', () => {
+    const t = tournament({
+      id: 'rv',
+      players: ['x', 'y', 'z', 'w'],
+      matches: [
+        // Dead-even with y, but long ago.
+        { a: 'x', b: 'y', winner: 'x', loserScore: 10, at: now - 60 * day },
+        { a: 'x', b: 'y', winner: 'y', loserScore: 10, at: now - 60 * day },
+        { a: 'x', b: 'y', winner: 'x', loserScore: 10, at: now - 60 * day },
+        { a: 'x', b: 'y', winner: 'y', loserScore: 10, at: now - 60 * day },
+        // Lately: close with z, one-sided with w.
+        { a: 'x', b: 'z', winner: 'x', loserScore: 8, at: now - 3 * day },
+        { a: 'x', b: 'z', winner: 'z', loserScore: 9, at: now - 2 * day },
+        { a: 'x', b: 'w', winner: 'x', loserScore: 1, at: now - 3 * day },
+        { a: 'x', b: 'w', winner: 'x', loserScore: 0, at: now - 2 * day },
+      ],
+    })
+    const r = playerRivals('x', four, [t], now)
+    expect(r.allTime?.opponentId).toBe('y')
+    expect(r.current?.opponentId).toBe('z')
+    expect(r.current?.matches).toBe(2)
+  })
+
+  test('gap is 0 for an even record and 1 for a whitewash', () => {
+    const even = tournament({
+      id: 'g1',
+      players: ['x', 'y'],
+      matches: [
+        { a: 'x', b: 'y', winner: 'x', loserScore: 5, at: 1 },
+        { a: 'x', b: 'y', winner: 'y', loserScore: 5, at: 2 },
+      ],
+    })
+    expect(rivalryGap(playerHeadToHead('x', players, [even])[0])).toBe(0)
+    const whitewash = tournament({
+      id: 'g2',
+      players: ['x', 'y'],
+      matches: [{ a: 'x', b: 'y', winner: 'x', loserScore: 0, at: 1 }],
+    })
+    expect(rivalryGap(playerHeadToHead('x', players, [whitewash])[0])).toBe(1)
   })
 })

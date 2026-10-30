@@ -5,11 +5,14 @@ import Button from 'primevue/button'
 import { useTournamentsStore } from '@/stores/tournaments'
 import {
   NORMALISED_MAX_SCORE,
+  RIVAL_WINDOW_DAYS,
   currentStreak,
   globalPlayerStats,
   playerHeadToHead,
+  playerRivals,
   recentResults,
   type HeadToHead,
+  type Rival,
 } from '@/lib/stats'
 import FactCard from '@/components/FactCard.vue'
 
@@ -27,6 +30,17 @@ const stats = computed(() => {
 })
 
 const h2h = computed(() => playerHeadToHead(props.id, store.players, store.tournaments))
+
+const rivals = computed(() => playerRivals(props.id, store.players, store.tournaments))
+
+const rivalCards = computed(() =>
+  (
+    [
+      { label: 'Current rival', hint: `last ${RIVAL_WINDOW_DAYS} days`, rival: rivals.value.current },
+      { label: 'All-time rival', hint: 'closest record', rival: rivals.value.allTime },
+    ] as { label: string; hint: string; rival: Rival | null }[]
+  ).filter((c): c is { label: string; hint: string; rival: Rival } => c.rival !== null),
+)
 
 const sortKey = ref<H2HSortKey>('matches')
 const sortDir = ref<'asc' | 'desc'>('desc')
@@ -156,6 +170,29 @@ function fmtDate(ts: number): string {
           <div class="text-xs uppercase tracking-wide opacity-60">Point diff</div>
         </div>
       </div>
+    </section>
+
+    <section v-if="rivalCards.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <button
+        v-for="c in rivalCards"
+        :key="c.label"
+        class="text-left rounded-lg border border-surface-200 dark:border-surface-700 hover:border-primary-400 transition-colors p-3 flex flex-col gap-1 cursor-pointer"
+        @click="router.push({ name: 'player', params: { id: c.rival.opponentId } })"
+      >
+        <div class="text-xs uppercase tracking-wide opacity-60">
+          <i class="pi pi-bolt text-xs" /> {{ c.label }} · {{ c.hint }}
+        </div>
+        <div class="text-lg font-semibold truncate">{{ c.rival.opponentName }}</div>
+        <div class="text-sm tabular-nums opacity-80">
+          {{ c.rival.matches }} M ·
+          <span class="text-positive">{{ c.rival.wins }}</span
+          ><span class="opacity-50">-</span
+          ><span class="text-negative">{{ c.rival.losses }}</span>
+          <template v-if="c.rival.avgFor !== null && c.rival.avgAgainst !== null">
+            · Ø {{ fmtAvg(c.rival.avgFor) }}–{{ fmtAvg(c.rival.avgAgainst) }}
+          </template>
+        </div>
+      </button>
     </section>
 
     <section v-if="h2h.length" class="flex flex-col gap-2">

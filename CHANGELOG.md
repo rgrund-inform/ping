@@ -1,3 +1,10 @@
+# [1.17.0](https://github.com/rgrund-inform/ping/compare/v1.16.0...v1.17.0) (2026-10-30)
+
+
+### Features
+
+* **stats:** explain the rival calculation behind an info button ([b32d796](https://github.com/rgrund-inform/ping/commit/b32d7968889c8f0f50b26c294869add5ecdadfd5))
+
 # [1.16.0](https://github.com/rgrund-inform/ping/compare/v1.15.0...v1.16.0) (2026-10-30)
 
 

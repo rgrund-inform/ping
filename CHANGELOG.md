@@ -1,3 +1,10 @@
+# [1.15.0](https://github.com/rgrund-inform/ping/compare/v1.14.0...v1.15.0) (2026-10-30)
+
+
+### Features
+
+* **stats:** show average finish normalised to 7 in head-to-head ([2f0b12e](https://github.com/rgrund-inform/ping/commit/2f0b12ed37b5b25b279f765b5bf23436ed490e02))
+
 # [1.14.0](https://github.com/rgrund-inform/ping/compare/v1.13.0...v1.14.0) (2026-10-08)
 
 

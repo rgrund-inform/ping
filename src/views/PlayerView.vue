@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
+import Popover from 'primevue/popover'
 import { useTournamentsStore } from '@/stores/tournaments'
 import {
   NORMALISED_MAX_SCORE,
@@ -41,6 +42,8 @@ const rivalCards = computed(() =>
     ] as { label: string; hint: string; rival: Rival | null }[]
   ).filter((c): c is { label: string; hint: string; rival: Rival } => c.rival !== null),
 )
+
+const rivalInfo = ref<InstanceType<typeof Popover> | null>(null)
 
 const sortKey = ref<H2HSortKey>('matches')
 const sortDir = ref<'asc' | 'desc'>('desc')
@@ -172,27 +175,58 @@ function fmtDate(ts: number): string {
       </div>
     </section>
 
-    <section v-if="rivalCards.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <button
-        v-for="c in rivalCards"
-        :key="c.label"
-        class="text-left rounded-lg border border-surface-200 dark:border-surface-700 hover:border-primary-400 transition-colors p-3 flex flex-col gap-1 cursor-pointer"
-        @click="router.push({ name: 'player', params: { id: c.rival.opponentId } })"
-      >
-        <div class="text-xs uppercase tracking-wide opacity-60">
-          <i class="pi pi-bolt text-xs" /> {{ c.label }} · {{ c.hint }}
+    <section v-if="rivalCards.length" class="flex flex-col gap-2">
+      <div class="flex items-center gap-1">
+        <h2 class="text-lg font-semibold">Rivals</h2>
+        <Button
+          icon="pi pi-info-circle"
+          severity="secondary"
+          text
+          rounded
+          size="small"
+          aria-label="How rivals are calculated"
+          @click="rivalInfo?.toggle($event)"
+        />
+      </div>
+      <Popover ref="rivalInfo">
+        <div class="max-w-xs text-sm flex flex-col gap-2">
+          <p>Your rival is the opponent with the most <strong>even</strong> head-to-head.</p>
+          <p>Evenness averages two things:</p>
+          <ol class="list-decimal pl-5 flex flex-col gap-1">
+            <li><strong>W-L:</strong> how close the win/loss record is (5-5 is even, 10-0 is not).</li>
+            <li>
+              <strong>Ø /{{ NORMALISED_MAX_SCORE }}:</strong> how close the average scores are, every
+              match scaled to a game to {{ NORMALISED_MAX_SCORE }}.
+            </li>
+          </ol>
+          <p>
+            <strong>All-time</strong> needs 3 matches. <strong>Current</strong> looks at the last
+            {{ RIVAL_WINDOW_DAYS }} days and needs 2. On a tie, more matches wins.
+          </p>
         </div>
-        <div class="text-lg font-semibold truncate">{{ c.rival.opponentName }}</div>
-        <div class="text-sm tabular-nums opacity-80">
-          {{ c.rival.matches }} M ·
-          <span class="text-positive">{{ c.rival.wins }}</span
-          ><span class="opacity-50">-</span
-          ><span class="text-negative">{{ c.rival.losses }}</span>
-          <template v-if="c.rival.avgFor !== null && c.rival.avgAgainst !== null">
-            · Ø {{ fmtAvg(c.rival.avgFor) }}–{{ fmtAvg(c.rival.avgAgainst) }}
-          </template>
-        </div>
-      </button>
+      </Popover>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <button
+          v-for="c in rivalCards"
+          :key="c.label"
+          class="text-left rounded-lg border border-surface-200 dark:border-surface-700 hover:border-primary-400 transition-colors p-3 flex flex-col gap-1 cursor-pointer"
+          @click="router.push({ name: 'player', params: { id: c.rival.opponentId } })"
+        >
+          <div class="text-xs uppercase tracking-wide opacity-60">
+            <i class="pi pi-bolt text-xs" /> {{ c.label }} · {{ c.hint }}
+          </div>
+          <div class="text-lg font-semibold truncate">{{ c.rival.opponentName }}</div>
+          <div class="text-sm tabular-nums opacity-80">
+            {{ c.rival.matches }} M ·
+            <span class="text-positive">{{ c.rival.wins }}</span
+            ><span class="opacity-50">-</span
+            ><span class="text-negative">{{ c.rival.losses }}</span>
+            <template v-if="c.rival.avgFor !== null && c.rival.avgAgainst !== null">
+              · Ø {{ fmtAvg(c.rival.avgFor) }}–{{ fmtAvg(c.rival.avgAgainst) }}
+            </template>
+          </div>
+        </button>
+      </div>
     </section>
 
     <section v-if="h2h.length" class="flex flex-col gap-2">

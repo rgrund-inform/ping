@@ -1,3 +1,10 @@
+# [1.16.0](https://github.com/rgrund-inform/ping/compare/v1.15.0...v1.16.0) (2026-10-30)
+
+
+### Features
+
+* **stats:** show current and all-time rival on the player page ([8331dd9](https://github.com/rgrund-inform/ping/commit/8331dd9427f0071f2a8f08bfc215aa9882f599a5))
+
 # [1.15.0](https://github.com/rgrund-inform/ping/compare/v1.14.0...v1.15.0) (2026-10-30)
 
 

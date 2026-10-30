@@ -104,6 +104,45 @@ describe('playerHeadToHead', () => {
     expect(vsZ.matches).toBe(1)
     expect(vsZ.wins).toBe(1)
   })
+
+  test('averages the finish normalised to a game to 7', () => {
+    const to11 = tournament({
+      id: 'n11',
+      players: ['x', 'y'],
+      maxScore: 11,
+      matches: [{ a: 'x', b: 'y', winner: 'x', loserScore: 0, at: 100 }],
+    })
+    const to7 = tournament({
+      id: 'n7',
+      players: ['x', 'y'],
+      maxScore: 7,
+      matches: [{ a: 'x', b: 'y', winner: 'y', loserScore: 5, at: 200 }],
+    })
+    const quick = tournament({
+      id: 'nq',
+      players: ['x', 'y'],
+      scoring: 'wins',
+      matches: [{ a: 'x', b: 'y', winner: 'x', loserScore: null, at: 300 }],
+    })
+    const vsY = playerHeadToHead('x', players, [to11, to7, quick])[0]
+    expect(vsY.matches).toBe(3)
+    expect(vsY.scoredMatches).toBe(2)
+    // 11–0 → 7–0, 5–7 stays: (7 + 5) / 2 and (0 + 7) / 2.
+    expect(vsY.avgFor).toBe(6)
+    expect(vsY.avgAgainst).toBe(3.5)
+  })
+
+  test('has no average without a scoreline', () => {
+    const quick = tournament({
+      id: 'nq',
+      players: ['x', 'y'],
+      scoring: 'wins',
+      matches: [{ a: 'x', b: 'y', winner: 'x', loserScore: null, at: 100 }],
+    })
+    const vsY = playerHeadToHead('x', players, [quick])[0]
+    expect(vsY.avgFor).toBeNull()
+    expect(vsY.avgAgainst).toBeNull()
+  })
 })
 
 describe('recentResults', () => {

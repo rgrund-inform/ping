@@ -24,7 +24,18 @@ export interface HeadToHead {
   winRate: number
   pointsFor: number
   pointsAgainst: number
+  /** Matches with a scoreline (win-only results have none). */
+  scoredMatches: number
+  /**
+   * Average finish with each match scaled to a game to 7, so tournaments with
+   * different `maxScore` compare. null when no match has a scoreline.
+   */
+  avgFor: number | null
+  avgAgainst: number | null
 }
+
+/** Score scale `avgFor` / `avgAgainst` are normalised to. */
+export const NORMALISED_MAX_SCORE = 7
 
 export interface RecentResult {
   matchId: string
@@ -151,6 +162,8 @@ export function playerHeadToHead(
   tournaments: Tournament[],
 ): HeadToHead[] {
   const map = new Map<PlayerId, HeadToHead>()
+  // Running totals of the normalised scores, averaged once at the end.
+  const sums = new Map<PlayerId, { for: number; against: number }>()
   for (const m of realMatches(tournaments)) {
     if (m.a !== pid && m.b !== pid) continue
     const opponent = m.a === pid ? m.b : m.a
@@ -167,24 +180,35 @@ export function playerHeadToHead(
         winRate: 0,
         pointsFor: 0,
         pointsAgainst: 0,
+        scoredMatches: 0,
+        avgFor: null,
+        avgAgainst: null,
       }
       map.set(opponent, h)
+      sums.set(opponent, { for: 0, against: 0 })
     }
     h.matches++
     if (isWin) h.wins++
     else h.losses++
     if (m.loserScore !== null) {
-      if (isWin) {
-        h.pointsFor += m.maxScore
-        h.pointsAgainst += m.loserScore
-      } else {
-        h.pointsFor += m.loserScore
-        h.pointsAgainst += m.maxScore
-      }
+      const self = isWin ? m.maxScore : m.loserScore
+      const other = isWin ? m.loserScore : m.maxScore
+      h.pointsFor += self
+      h.pointsAgainst += other
+      h.scoredMatches++
+      const scale = NORMALISED_MAX_SCORE / m.maxScore
+      const sum = sums.get(opponent)!
+      sum.for += self * scale
+      sum.against += other * scale
     }
   }
   for (const h of map.values()) {
     h.winRate = h.matches === 0 ? 0 : h.wins / h.matches
+    if (h.scoredMatches > 0) {
+      const sum = sums.get(h.opponentId)!
+      h.avgFor = sum.for / h.scoredMatches
+      h.avgAgainst = sum.against / h.scoredMatches
+    }
   }
   return [...map.values()].sort(
     (a, b) => b.matches - a.matches || b.winRate - a.winRate,

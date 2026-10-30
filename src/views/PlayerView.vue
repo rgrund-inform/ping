@@ -3,10 +3,17 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Button from 'primevue/button'
 import { useTournamentsStore } from '@/stores/tournaments'
-import { currentStreak, globalPlayerStats, playerHeadToHead, recentResults } from '@/lib/stats'
+import {
+  NORMALISED_MAX_SCORE,
+  currentStreak,
+  globalPlayerStats,
+  playerHeadToHead,
+  recentResults,
+  type HeadToHead,
+} from '@/lib/stats'
 import FactCard from '@/components/FactCard.vue'
 
-type H2HSortKey = 'opponentName' | 'matches' | 'wins' | 'winRate'
+type H2HSortKey = 'opponentName' | 'matches' | 'wins' | 'winRate' | 'avgMargin'
 
 const props = defineProps<{ id: string }>()
 const router = useRouter()
@@ -33,9 +40,20 @@ const sortedH2h = computed(() => {
       if (byWins !== 0) return byWins
       return a.losses - b.losses
     }
+    if (sortKey.value === 'avgMargin') {
+      // Opponents without a scoreline sort last in either direction.
+      const ma = avgMargin(a)
+      const mb = avgMargin(b)
+      if (ma === null || mb === null) return (ma === null ? 1 : 0) - (mb === null ? 1 : 0)
+      return dir * (ma - mb)
+    }
     return dir * (a[sortKey.value] - b[sortKey.value])
   })
 })
+
+function avgMargin(h: HeadToHead): number | null {
+  return h.avgFor === null || h.avgAgainst === null ? null : h.avgFor - h.avgAgainst
+}
 
 function setSort(key: H2HSortKey) {
   if (sortKey.value === key) {
@@ -60,6 +78,10 @@ function fmtPercent(x: number): string {
 
 function fmtDiff(n: number): string {
   return n > 0 ? `+${n}` : `${n}`
+}
+
+function fmtAvg(n: number): string {
+  return n.toFixed(1)
 }
 
 function fmtDate(ts: number): string {
@@ -144,14 +166,21 @@ function fmtDate(ts: number): string {
             <th class="px-2 py-2 cursor-pointer select-none" @click="setSort('opponentName')">
               Opponent{{ arrow('opponentName') }}
             </th>
-            <th class="px-2 py-2 text-right w-20 cursor-pointer select-none" @click="setSort('matches')">
+            <th class="px-2 py-2 text-right w-12 cursor-pointer select-none" @click="setSort('matches')">
               M{{ arrow('matches') }}
             </th>
-            <th class="px-2 py-2 text-right w-24 cursor-pointer select-none" @click="setSort('wins')">
+            <th class="px-2 py-2 text-right w-16 cursor-pointer select-none" @click="setSort('wins')">
               W-L{{ arrow('wins') }}
             </th>
-            <th class="px-2 py-2 text-right w-20 cursor-pointer select-none" @click="setSort('winRate')">
+            <th class="px-2 py-2 text-right w-16 cursor-pointer select-none" @click="setSort('winRate')">
               Win%{{ arrow('winRate') }}
+            </th>
+            <th
+              class="px-2 py-2 text-right w-24 cursor-pointer select-none whitespace-nowrap"
+              :title="`Average finish, every match scaled to a game to ${NORMALISED_MAX_SCORE}`"
+              @click="setSort('avgMargin')"
+            >
+              Ø /{{ NORMALISED_MAX_SCORE }}{{ arrow('avgMargin') }}
             </th>
           </tr>
         </thead>
@@ -170,6 +199,14 @@ function fmtDate(ts: number): string {
               ><span class="text-negative">{{ row.losses }}</span>
             </td>
             <td class="px-2 py-2 text-right tabular-nums">{{ fmtPercent(row.winRate) }}</td>
+            <td class="px-2 py-2 text-right tabular-nums whitespace-nowrap">
+              <template v-if="row.avgFor !== null && row.avgAgainst !== null">
+                <span :class="{ 'text-positive': row.avgFor > row.avgAgainst }">{{ fmtAvg(row.avgFor) }}</span
+                ><span class="opacity-50">–</span
+                ><span :class="{ 'text-negative': row.avgFor < row.avgAgainst }">{{ fmtAvg(row.avgAgainst) }}</span>
+              </template>
+              <span v-else class="opacity-50">–</span>
+            </td>
           </tr>
         </tbody>
       </table>
